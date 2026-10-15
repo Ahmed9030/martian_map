@@ -13,6 +13,8 @@ martian_map_api (back-end)
 ├─ static
 │   all data of the maps
 │
+├─ README.md (for Installation)
+│
 martian_map_client (front-end)
 │
 empty
