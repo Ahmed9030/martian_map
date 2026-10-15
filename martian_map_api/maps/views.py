@@ -17,5 +17,6 @@ def shortestPath(request: HttpRequest):
     toPixelY = request.GET.get('toY')
     tifMp = 'MOLA_128ppd_topo.tif'
     tifTH = 'TES_Thermal_Inertia_numeric.tif'
+    # test numbers real numbers from request
     allPath = services.getLeastCostRoute(150,957,130,374,tifMp,tifTH)
     return JsonResponse(allPath,safe=False)

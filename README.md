@@ -4,7 +4,7 @@
 
 **1. Clone the repository**
 ```bash
-git clone [https://github.com/Raheem54/martian_map.git](https://github.com/Raheem54/martian_map.git)
+git clone https://github.com/Raheem54/martian_map.git
 cd martian_map
 ```
 **2. Create and activate a virtual environment**
