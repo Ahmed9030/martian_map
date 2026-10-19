@@ -3,39 +3,54 @@ import numpy as np
 import pandas as pd
 import rasterio
 
+from rasterio.transform import xy
 from scipy.ndimage import gaussian_filter
 from skimage.graph import route_through_array
 from django.conf import settings
 
 
-def getLeastCostRoute(startX, startY, endX, endY, tifMap, tifTherm):
+def getLeastCostRoute(coordinates, tifFiles, safelimites):
     start_time = time.time()
 
-    # Coordinates are pixel indices: (row, column)
-    start_node = (int(startX), int(startY))
-    end_node = (int(endX), int(endY))
+    startX = float(coordinates['startX'])
+    startY = float(coordinates['startY'])
+    endX = float(coordinates['endX'])
+    endY = float(coordinates['endY'])
 
-    tifMap_path = settings.TIF_PATH / tifMap
-    tifTherm_path = settings.TIF_PATH / tifTherm
+
+    tifMap_path = getTifFile(tifFiles['elevation'])
+    tifTherm_path = getTifFile(tifFiles['thermal'])
+    tifH2O_path = getTifFile(tifFiles['H2O'])
+
     with rasterio.open(tifTherm_path) as src:
         therm = src.read(1).astype(np.float64)
+
+    with rasterio.open(tifH2O_path) as src:
+        H2O = src.read(1).astype(np.float64)
+
     with rasterio.open(tifMap_path) as src:
         elevation = src.read(1).astype(np.float64)
         transform = src.transform
         crs = src.crs
         nodata = src.nodata
         valid_mask = src.read_masks(1) > 0
+        start_row, start_col = src.index(startX, startY)
+        end_row, end_col = src.index(endX, endY)
+
+    # Coordinates are coordinate indices: (row, column)
+    start_node = (start_row, start_col)
+    end_node = (end_row, end_col)
 
     height, width = elevation.shape
 
-    # Validate start and end pixels.
+    # Validate start and end coordinates.
     for name, (row, col) in [
         ("Start", start_node),
         ("End", end_node),
     ]:
         if not (0 <= row < height and 0 <= col < width):
             raise ValueError(
-                f"{name} pixel {(row, col)} is outside the raster."
+                f"{name} coordinate {(row, col)} is outside the raster."
             )
 
     # Exclude masked, non-finite and NoData cells.
@@ -68,11 +83,11 @@ def getLeastCostRoute(startX, startY, endX, endY, tifMap, tifTherm):
     # Smooth the elevation surface.
     smoothed = gaussian_filter(filled, sigma=1.0)
 
-    # Pixel dimensions in coordinate units.
-    pixel_width = float(np.hypot(transform.a, transform.d))
-    pixel_height = float(np.hypot(transform.b, transform.e))
+    # coordinate dimensions in coordinate units.
+    coordinate_width = float(np.hypot(transform.a, transform.d))
+    coordinate_height = float(np.hypot(transform.b, transform.e))
 
-    if pixel_width <= 0 or pixel_height <= 0:
+    if coordinate_width <= 0 or coordinate_height <= 0:
         raise ValueError("Invalid raster resolution.")
 
     if crs is None:
@@ -93,8 +108,8 @@ def getLeastCostRoute(startX, startY, endX, endY, tifMap, tifTherm):
         if not np.isfinite(meters_per_unit) or meters_per_unit <= 0:
             raise ValueError("Invalid projected unit conversion.")
 
-        dx_m = pixel_width * meters_per_unit
-        dy_m = pixel_height * meters_per_unit
+        dx_m = coordinate_width * meters_per_unit
+        dy_m = coordinate_height * meters_per_unit
 
         dz_drow = np.gradient(smoothed, axis=0)
         dz_dcol = np.gradient(smoothed, axis=1)
@@ -109,21 +124,42 @@ def getLeastCostRoute(startX, startY, endX, endY, tifMap, tifTherm):
 
     # Terrain safety and cost.
     # Change this threshold to match your rover's capabilities.
-    MAX_SAFE_SLOPE = 10.0
+    MAX_SAFE_SLOPE = float(safelimites['maxSlope'])
     SLOPE_PENALTY_WEIGHT = 100.0
 
-    terrain_cost = 1.0 + SLOPE_PENALTY_WEIGHT * (
+    MAX_SAFE_THERM = float(safelimites['maxTherm'])
+    MIN_SAFE_THERM = float(safelimites['minTherm'])
+    THERM_PENALTY_WEIGHT = 50.0
+
+    safeThermalMask = (therm >= MIN_SAFE_THERM) & (therm <= MAX_SAFE_THERM)
+
+    thermRange = MAX_SAFE_THERM - MIN_SAFE_THERM
+    if thermRange <= 0:
+        thermRange = 1.0
+
+    therm_cost = THERM_PENALTY_WEIGHT * ((
+        1.0 - (np.clip(
+            (therm - MIN_SAFE_THERM) / thermRange,
+            0.0,
+            1.0
+            ))) ** 2)
+
+    terrain_cost = SLOPE_PENALTY_WEIGHT * (
         np.clip(
             slope_degrees / MAX_SAFE_SLOPE,
             0.0,
-            1.0,
+            1.0
         ) ** 2
     )
+
+    total_cost = 1.0 + terrain_cost + therm_cost
 
     traversable = (
         valid_data
         & np.isfinite(slope_degrees)
+        & np.isfinite(therm)
         & (slope_degrees <= MAX_SAFE_SLOPE)
+        & safeThermalMask
     )
 
     if not traversable.any():
@@ -144,16 +180,17 @@ def getLeastCostRoute(startX, startY, endX, endY, tifMap, tifTherm):
         if not traversable[node]:
             raise ValueError(
                 f"{name} point exceeds the slope limit "
-                f"of {MAX_SAFE_SLOPE} degrees."
+                f"of {MAX_SAFE_SLOPE} degrees,"
+                f"or the {MAX_SAFE_THERM} or the {MIN_SAFE_THERM}."
             )
 
     # Find the least-cost route.
-    max_cost = float(terrain_cost[traversable].max())
+    max_cost = float(total_cost[traversable].max())
     blocked_cost = max(max_cost, 1.0) * 1e12
 
     cost_grid = np.where(
         traversable,
-        terrain_cost,
+        total_cost,
         blocked_cost,
     )
 
@@ -172,9 +209,10 @@ def getLeastCostRoute(startX, startY, endX, endY, tifMap, tifTherm):
         raise ValueError(
             "The computed route crosses blocked terrain."
         )
-    path_temperatures = therm[path_rows, path_cols]
-    path_slopes = slope_degrees[path_rows, path_cols]
-    path_elevations = elevation[path_rows, path_cols]
+    pathTempretures = therm[path_rows, path_cols]
+    pathH2O = H2O[path_rows, path_cols]
+    pathSlopes = slope_degrees[path_rows, path_cols]
+    pathElevations = elevation[path_rows, path_cols]
 
     # Calculate route distance in meters.
     if len(path_rows) < 2:
@@ -195,24 +233,46 @@ def getLeastCostRoute(startX, startY, endX, endY, tifMap, tifTherm):
     print(f"Execution time: {execution_time:.3f} seconds")
     print(f"Accumulated cost: {accumulated_cost:.3f}")
     print(f"Route length: {route_length_m:.2f} m")
-    print(f"Maximum route slope: {path_slopes.max():.2f} degrees")
+    print(f"Maximum route slope: {pathSlopes.max():.2f} degrees")
     print("=" * 45)
+
+    x_coords, y_coords = xy(transform, path_rows, path_cols)
 
     route_df = pd.DataFrame({
         "Step": range(1, len(path_rows) + 1),
-        "X_pixel": path_rows,
-        "Y_pixel": path_cols,
-        "Elevation": path_elevations,
-        "Slope_Degrees": path_slopes,
-        "therm": path_temperatures
+        "X_coordinate": x_coords,
+        "Y_coordinate": y_coords,
+        "Elevation": pathElevations,
+        "Slope_Degrees": pathSlopes,
+        "therm": pathTempretures,
+        "H2O": pathH2O
     })
 
     return {
         "path_data": route_df.to_dict(orient="records"),
         "route_length": round(route_length_m, 2),
-        "Maximum_slope": round(float(path_slopes.max()), 2),
-        "Minimum_slope": round(float(path_slopes.min()), 2),
-        "execution_time": round(execution_time, 3),
+        "Maximum_slope": round(float(pathSlopes.max()), 2),
+        "Minimum_slope": round(float(pathSlopes.min()), 2),
+        "Maximum_therm": round(float(pathTempretures.max()), 2),
+        "Minimum_therm": round(float(pathTempretures.min()), 2),
         "accumulated_cost": round(float(accumulated_cost), 3),
         "max_safe_slope": MAX_SAFE_SLOPE,
     }
+
+def get_image_bounds(tif):
+    file = getTifFile(tif)
+    with rasterio.open(file) as src:
+        bounds = src.bounds
+        
+
+        coordinates = [
+            [bounds.left, bounds.top],
+            [bounds.right, bounds.top],
+            [bounds.right, bounds.bottom],
+            [bounds.left, bounds.bottom]
+        ]
+        
+        return coordinates
+
+def getTifFile(tifname):
+    return settings.TIF_PATH / tifname
