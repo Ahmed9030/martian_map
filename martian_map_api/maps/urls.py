@@ -4,6 +4,7 @@ from . import views
 
 
 urlpatterns = [
-    path('maps/',views.PNGmap,name='maps'),
-    path('shortpath/',views.shortestPath,name='shortpath'),
+    path('map/',views.getMap,name='map'),
+    path('path/',views.Path,name='path'),
+    path('vehicles/',views.vehicles,name='vehicles'),
 ]
