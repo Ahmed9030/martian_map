@@ -1,0 +1,236 @@
+[
+{
+    "model": "maps.map",
+    "pk": 1,
+    "fields": {
+        "title": "Tharsis Chryse Corridor",
+        "PNGname": "TharsisMap.png",
+        "Elename": "TharsisEle.tif",
+        "Radname": "TharsisRad.tif",
+        "Fename": "TharsisFe.tif",
+        "H2Oname": "TharsisH2O.tif",
+        "Siname": "TharsisSi.tif",
+        "Thermname": "TharsisTherm.tif",
+        "Windname": "TharsisWind.tif"
+    }
+},
+{
+    "model": "maps.map",
+    "pk": 2,
+    "fields": {
+        "title": "Jezero Center",
+        "PNGname": "jezeroMap.png",
+        "Elename": "jezeroEle.tif",
+        "Radname": "jezeroRad.tif",
+        "Fename": "jezeroFe.tif",
+        "H2Oname": "jezeroH2O.tif",
+        "Siname": "jezeroSi.tif",
+        "Thermname": "jezeroTherm.tif",
+        "Windname": "jezeroWind.tif"
+    }
+},
+{
+    "model": "maps.vehicle",
+    "pk": 1,
+    "fields": {
+        "name": "Multi-Mission Space Exploration Vehicle (MMSEV)",
+        "description": "Develop a manned vehicle allowing brief sorties to items of interest during multiple types of exploration missions. The vehicle consists of a core cabin that is optimized for observations, has a robotics platform, and quick access EVA through the use of suitports. Core cabin can be utilized with chassis as planetary rover, or in space with RCS sled.\r\n\r\nThe Multi-¡-Mission Space Exploration Vehicle (MMSEV) consists of a core cabin with suit ports that is optimized for exploration observations, low overhead EVA and Robotics support, low volume habitation, and Solar Particle Event (SPE) radiation protection. The cabin can be configured with modular mobility systems, and modular forward and aft mounted work packages to address multiple mission destinations and applications. This Advanced Exploration Systems (AES) project covers the MMSEV cabin, MMSEV mobility systems (in-¡-space and planetary mobility modules) and Portable Utility Pallet (PUP). The suit port and suit port compatible exploration suits are included in the AES EVA Suit Port and AES EVA Suit projects, respectively. Development and testing of MMSEV-¡-specific ECLSS components, specifically the fusible heat sink, is included in this plan but collaboration with the AES Life Support Systems project will enable bench testing of other components of the MMSEV Environmental Control and Life Support System (ECLSS) that are not unique to the MMSEV. Manipulator work packages will be provided through the Office of the Chief Technologist (OCT) Human Robotic Systems program. These related projects will use the MMSEV as the focusing element and an overall integrated work breakdown structure will be created by the MMSEV project that includes all of the MMSV's systems.",
+        "photo": "https://www.researchgate.net/profile/Guy-Boy/publication/249335298/figure/fig1/AS:298363737133057@1448146866444/Multi-Mission-Space-Exploration-Vehicle-MMSEV-for-Astronaut-Deep-Space-Exploration.png",
+        "maxSpead": 10.0,
+        "maxRad": 30.0,
+        "maxEle": 25.0,
+        "maxTherm": 394.0,
+        "maxWind": 44.0,
+        "minTherm": 130.0
+    }
+},
+{
+    "model": "maps.vehicle",
+    "pk": 5,
+    "fields": {
+        "name": "Starship",
+        "description": "SpaceX announced that it would launch the first uncrewed Starship missions to Mars by 2026 to take advantage of the next Earth-Mars transfer window. It was planned to send five Starships, and Elon Musk stated that these missions would focus on testing whether Starships could reliably land intact on Mars. If the missions were a success, the company would begin crewed flights to Mars within about four years.",
+        "photo": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Starship_S20.jpg/960px-Starship_S20.jpg?utm_source=en.wikipedia.org",
+        "maxSpead": 7.5,
+        "maxRad": 10.0,
+        "maxEle": 10.0,
+        "maxTherm": 90.0,
+        "maxWind": 10.0,
+        "minTherm": 1144.0
+    }
+},
+{
+    "model": "maps.vehicle",
+    "pk": 6,
+    "fields": {
+        "name": "Crewed Pressurized Mars Rover",
+        "description": "Role: Main surface transport and mobile habitat.\nCrew Capacity: 2 astronauts nominal (4 in emergencies).\nLife Support Duration: 14 consecutive days of autonomous power and air.\nRadiation Shielding: Carbon-fiber hull with an integrated water-wall barrier.\nEVA System: Rear suit-ports to prevent toxic Martian dust from entering the cabin.\n",
+        "photo": "https://www.nasa.gov/wp-content/uploads/2025/06/20250331-02.jpg",
+        "maxSpead": 10.0,
+        "maxRad": 100.0,
+        "maxEle": 30.0,
+        "maxTherm": 249.0,
+        "maxWind": 20.0,
+        "minTherm": 143.0
+    }
+},
+{
+    "model": "maps.vehicle",
+    "pk": 7,
+    "fields": {
+        "name": "Mars Ascent Vehicle (MAV)",
+        "description": "Role: Surface-to-orbit launch rocket.\nCrew Capacity: 4 astronauts (transports the entire surface team simultaneously).\nFlight Profile: Reaches low Mars orbit (250û500 km altitude) in 10 minutes.\nPropulsion Fuel: Liquid Oxygen and Methane (Oxygen is manufactured directly on Mars from atmospheric CO2).",
+        "photo": "https://cdna.artstation.com/p/assets/images/images/014/863/780/large/alex-nice-mav-002.jpg?1545973554",
+        "maxSpead": 14760.0,
+        "maxRad": 2000.0,
+        "maxEle": 30.0,
+        "maxTherm": 313.0,
+        "maxWind": 10.0,
+        "minTherm": 233.0
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 1,
+    "fields": {
+        "title": "Jezero Crater",
+        "map_id": 2,
+        "description": "Measuring roughly 49 km in diameter, Jezero Crater formed during MarsÆ Noachian period, approximately 4.1 to 3.7 billion years ago. At that time, liquid water flowed openly through channels across the surface of Mars, and pooled in lakes and seas. Jezero was once a great crater lake. Water accumulating from vast watersheds entered the lake through two inflow channels, one breaching the western rim and another flowing in from the north. Sediments gathered and concentrated in the inflowing rivers were deposited on the floor on the crater lake. Two delta deposit fans are visible where both of the inflow channels entered the crater, with the western deposit being the better preserved.\nExtending beyond the delta deposits are deeper basin fill deposits rich in carbonates. What appears to be an overlying volcanic deposit from the nearby Syrtis Major volcanic complex covers large areas of the central and eastern portions of the crater floor. A distinct outflow channel extends from the eastward edge of the crater. The northeastern half of the crater rim is heavily eroded, while the southwestern half remains prominent, rising over 800 meters above the crater floor.",
+        "photo": "https://trek.nasa.gov/assets/bookmarks/mars/perseverance/jezero-crater/jezero_crater_large.jpg",
+        "x_coord": 578.73,
+        "y_coord": 1090618.59
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 2,
+    "fields": {
+        "title": "Perseverance Landing Ellipse",
+        "map_id": 2,
+        "description": "This is the targeted landing ellipse for Perseverance. The targeted area for landing takes the form of an ellipse rather than a precise point because of a number of uncertainties that arise in the entry, descent, and landing phase of PerseveranceÆs journey. These variables include slight uncertainties in the angle, location, timing, and velocity of the spacecraft as it enters MarsÆ atmosphere and variability in MarsÆ atmospheric density and winds as the spacecraft makes its descent.",
+        "photo": null,
+        "x_coord": -12852.11,
+        "y_coord": 1092733.45
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 3,
+    "fields": {
+        "title": "Western Delta Deposit",
+        "map_id": 2,
+        "description": "This fan of sedimentary material was deposited by the western inflow channel. It is particularly well preserved, exhibiting a finely layered structure that reveals its having been laid down over a prolonged period of time. It is rich in smectite clay and is a primary target for exploration by Perseverance. In the view below looking straight down at the surface, the western inflow channel can be seen entering the crater from the left of the image and the delta deposit fans out toward the right.",
+        "photo": "https://trek.nasa.gov/assets/bookmarks/mars/perseverance/western-delta-deposit/western_delta_large.jpg",
+        "x_coord": -17869.21,
+        "y_coord": 1096231.55
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 4,
+    "fields": {
+        "title": "Northern Delta Deposit",
+        "map_id": 2,
+        "description": "This fan of sedimentary material was deposited by the northern inflow channel. It is not as well defined as the western deposit. This deposit is dominated by magnesium-carbonates and associated olivine. In the view below looking straight down at the surface, the northern inflow channel can be seen entering the crater from the top of the image and the delta deposit fans out toward the bottom. A smaller tributary channel flowing from the southwest can be seen joining the main channel just before its entry into the lake.",
+        "photo": "https://trek.nasa.gov/assets/bookmarks/mars/perseverance/northern-delta-deposit/northern_delta_large.jpg",
+        "x_coord": -7835.01,
+        "y_coord": 1103553.56
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 5,
+    "fields": {
+        "title": "Western Breach",
+        "map_id": 2,
+        "description": "This over 400-meter deep ravine is where the western inflow channel cut through the rim of Jezero Crater and filled the crater lake there. To the west of this ravine the channel extends westward draining a large watershed in the uplands above. To the east of the ravine, a large well-defined and clearly-layered delta deposit marks where the inflowing river dumped its burden of sand, clay rocks, and gravel. This breach remains quite prominent, as the crater rim here is relatively well-preserved, as opposed to in the locations of the northern inflow channel and the outflow channel to the east. The view below is looking west from within the crater and out the breach.",
+        "photo": "https://trek.nasa.gov/assets/bookmarks/mars/perseverance/western-breach/western_breach_large.jpg",
+        "x_coord": -22269.16,
+        "y_coord": 1095743.41
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 6,
+    "fields": {
+        "title": "Western Inflow Channel",
+        "map_id": 2,
+        "description": "This river channel drained a vast watershed in the uplands extending to the west of Jezero Crater. It entered the crater through a gap in the western rim that is relatively well preserved compared to the northern inflow channel and to the outflow channel to the east. The inflowing channel left a remarkable delta deposit of sediment extending out across the western floor of the crater lakebed. In the image below, the water flowed from left to right with the entrance into Jezero Crater out of the frame to the right in this view. The channel, once filled with flowing water, can now be seen to be occupied by extensive dunes of wind-blown sand.",
+        "photo": "https://trek.nasa.gov/assets/bookmarks/mars/perseverance/western-inflow-channel/western_inflow_large.jpg",
+        "x_coord": -26977.12,
+        "y_coord": 1100787.66
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 7,
+    "fields": {
+        "title": "Northern Inflow Channel",
+        "map_id": 2,
+        "description": "This river channel drained a vast watershed in the uplands extending to the west of Jezero Crater. It entered the crater through a gap in the western rim that is relatively well preserved compared to the northern inflow channel and to the outflow channel to the east. The inflowing channel left a remarkable delta deposit of sediment extending out across the western floor of the crater lakebed. In the image below, the water flowed from left to right with the entrance into Jezero Crater out of the frame to the right in this view. The channel, once filled with flowing water, can now be seen to be occupied by extensive dunes of wind-blown sand.",
+        "photo": "https://trek.nasa.gov/assets/bookmarks/mars/perseverance/western-inflow-channel/western_inflow_large.jpg",
+        "x_coord": -11539.66,
+        "y_coord": 1117871.78
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 8,
+    "fields": {
+        "title": "Outflow Channel",
+        "map_id": 2,
+        "description": "Water that filled the lake in Jezero Crater from its two inflow channels eventually overtopped the crater wall on the southern side, flowing out across the terrain below. But the clearest area of drainage is through this third large channel flowing out of the eastern side of the crater. Some researchers have suggested that this outflow channel might have been cut in a single massive event representing a flooding deluge with a timescale of perhaps only a few weeks. Others suggest that this channel provided drainage for the lake over an extended period of time, balancing the inflow from the northern and western inflow channels. The true nature of what happened here awaits detailed examination on the ground in Jezero Crater. The view below looks eastward along the outflow channel.",
+        "photo": "https://trek.nasa.gov/assets/bookmarks/mars/perseverance/outflow-channel/outflow_large.jpg",
+        "x_coord": 57776.29,
+        "y_coord": 1108272.0
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 9,
+    "fields": {
+        "title": "Olympus Mons",
+        "map_id": 1,
+        "description": "Towering three times taller than Mt Everest on Earth, Olympus Mons is the Solar SystemÆs tallest mountain and greatest volcano. This view was taken with the THEMIS infrared camera aboard the Mars Odyssey spacecraft.",
+        "photo": "https://trek.nasa.gov/img/galleries/vrlibrary/OlympusMonsScreenshot.jpg",
+        "x_coord": -2456269.08,
+        "y_coord": 1105320.81
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 10,
+    "fields": {
+        "title": "Tharsis Montes",
+        "map_id": 1,
+        "description": "Beside Olympus Mons, MarsÆ Tharsis region features numerous other volcanoes, some of which dwarf any found on Earth. Here we fly, southwest to northeast over the gigantic peaks of Arsia Mons, Pavonis Mons, and Ascraeus Mons. This view is from the Viking Orbiter Camera.",
+        "photo": "https://trek.nasa.gov/img/galleries/vrlibrary/TharsisMontesScreenshot.jpg",
+        "x_coord": -1213994.97,
+        "y_coord": 93073.16
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 11,
+    "fields": {
+        "title": "Valles Marineris",
+        "map_id": 1,
+        "description": "MarsÆ Grand Canyon is staggeringly immense. If it were placed here on Earth, it could stretch all of the way across North America. Its walls tower as high as EarthÆs tallest mountain range. Here we fly east to west above the canyon. This view was taken with the THEMIS infrared camera aboard the Mars Odyssey spacecraft.",
+        "photo": "https://trek.nasa.gov/img/galleries/vrlibrary/VallesMarinerisScreenshot.jpg",
+        "x_coord": 1975467.47,
+        "y_coord": -830159.82
+    }
+},
+{
+    "model": "maps.destinations",
+    "pk": 12,
+    "fields": {
+        "title": "Kasei Valles",
+        "map_id": 1,
+        "description": "Mars is a complete desert today. But billions of years ago, water flowed across MarsÆ surface. Today, we can still see great, dry, ancient river channels like Kasei Valles. In this color-coded view, the lowest areas are blue, higher areas are green, and even higher areas are yellow. As we fly downstream west to east, we can see how the landscape was carved and streamlined by vast amounts of flowing water.",
+        "photo": "https://trek.nasa.gov/img/galleries/vrlibrary/KaseiVallesScreenshot.jpg",
+        "x_coord": 1722021.34,
+        "y_coord": 1489848.18
+    }
+}
+]

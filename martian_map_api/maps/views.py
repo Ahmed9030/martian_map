@@ -44,14 +44,26 @@ def Path(request: HttpRequest):
         'maxRadiation' : request.GET.get('maxRadiation'),
         'maxWind' : request.GET.get('maxWind'),
         'speed' : request.GET.get('speed'),
+        'mode' : mode
     }
     if mode == 'science':
+        def parse_float(val, default_val):
+            try:
+                return float(val) if val is not None else default_val
+            except (ValueError, TypeError):
+                return default_val
+
+        h2o = parse_float(request.GET.get('h2o'), 0.8)
+        fe = parse_float(request.GET.get('fe'), 0.6)
+        si = parse_float(request.GET.get('si'), 0.6)
+
         resource_weights = {
-            'h2o': request.GET.get('h2o'),
-            'fe': request.GET.get('fe'),
-            'si': request.GET.get('si')
+            'h2o': h2o,
+            'fe': fe,
+            'si': si
         }
-        allPath = services.getResourceRichRoute(coordinates, tifFiles, safelimites, resource_weights)
+
+        allPath = services.getLeastCostRoute(coordinates, tifFiles, safelimites, resource_weights)
     else:
         allPath = services.getLeastCostRoute(coordinates, tifFiles, safelimites)
     
