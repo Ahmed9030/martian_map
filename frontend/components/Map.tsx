@@ -151,7 +151,7 @@ export default function Map() {
       position: 'bottomleft',
       },
         
-      onAdd: function (map: any) {
+      onAdd: function (map: LeafletMap) {
       const container = L.DomUtil.create(
       'div',
       'mars-scale-control'
@@ -221,7 +221,7 @@ const resetButton = L.DomUtil.create(
   'a',
   'leaflet-control-reset-view',
   zoomControl.getContainer()
-);
+) as HTMLAnchorElement;
 
 resetButton.innerHTML = `
   <svg viewBox="0 0 24 24" width="18" height="18"
@@ -239,7 +239,7 @@ resetButton.setAttribute('role', 'button');
 L.DomEvent.disableClickPropagation(resetButton);
 L.DomEvent.on(resetButton, 'click', (e: Event) => {
   L.DomEvent.preventDefault(e);
-  map.setView(center, selectedMap === 2 ? -8 : -11, {
+  map?.setView(center, selectedMap === 2 ? -8 : -11, {
   animate: true,
 });
 });

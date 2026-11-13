@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,8 @@ type RevealProps = {
   className?: string;
   delay?: number;
   y?: number;
+  /** Rendered element, defaults to a `div`. Use `li` inside lists. */
+  as?: "div" | "li" | "article" | "section";
 };
 
 /** Fades and lifts its children into view once they enter the viewport. */
@@ -26,8 +28,9 @@ export function Reveal({
   className,
   delay = 0,
   y = 24,
+  as: Tag = "div",
 }: RevealProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const element = ref.current;
@@ -58,8 +61,34 @@ export function Reveal({
     return () => context.revert();
   }, [delay, y]);
 
+  const classes = cn(className);
+
+  if (Tag === "li") {
+    return (
+      <li ref={ref as Ref<HTMLLIElement>} className={classes}>
+        {children}
+      </li>
+    );
+  }
+
+  if (Tag === "article") {
+    return (
+      <article ref={ref as Ref<HTMLElement>} className={classes}>
+        {children}
+      </article>
+    );
+  }
+
+  if (Tag === "section") {
+    return (
+      <section ref={ref as Ref<HTMLElement>} className={classes}>
+        {children}
+      </section>
+    );
+  }
+
   return (
-    <div ref={ref} className={cn(className)}>
+    <div ref={ref as Ref<HTMLDivElement>} className={classes}>
       {children}
     </div>
   );

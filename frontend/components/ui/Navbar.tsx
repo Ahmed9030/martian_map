@@ -13,7 +13,6 @@ import {
 const links = [
   { label: "Home", href: "/" },
   { label: "Map", href: "/map" },
-  { label: "Action Plan", href: "/action-plan" },
   { label: "Documents", href: "/docs" },
 ];
 

@@ -82,6 +82,10 @@ export interface PathPoint {
   Elevation: number;
   Slope_Degrees: number;
   therm: number;
+  /** Day-side temperature for this step, as returned by `GET /path/`. */
+  max_therm: number;
+  /** Night-side temperature for this step, as returned by `GET /path/`. */
+  min_therm: number;
   H2O: number;
   Fe: number;
   Si: number;

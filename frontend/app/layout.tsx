@@ -20,9 +20,9 @@ const orbitron = Orbitron({
 });
 
 export const metadata: Metadata = {
-  title: "Mars — NASA Space Apps",
+  title: "Martian Map — NASA Space Apps",
   description:
-    "Become a Martian. Explore the Red Planet's landscapes and plan a mission with NASA Space Apps.",
+    "Become a Martian. Plan safe and science-driven rover routes across Mars using real elevation, slope, temperature, wind and mineral data.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

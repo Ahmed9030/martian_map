@@ -1,10 +1,9 @@
-import { DiscoverMars } from "@/components/home/DiscoverMars";
 import { Footer } from "@/components/home/Footer";
-import { Hero } from "@/components/home/Hero";
+import { HeroPlanet } from "@/components/home/HeroPlanet";
 import { MarsLandings } from "@/components/home/MarsLandings";
-import { Reliability } from "@/components/home/Reliability";
-import { Services } from "@/components/home/Services";
-import { SpaceTravel } from "@/components/home/SpaceTravel";
+import { ImpactSection } from "@/components/home/ImpactSection";
+import { SpaceCarousel } from "@/components/home/SpaceCarousel";
+import { WhyMartianMap } from "@/components/home/WhyMartianMap";
 import { Navbar } from "@/components/ui/Navbar";
 
 export default function Home() {
@@ -12,12 +11,11 @@ export default function Home() {
     <>
       <Navbar />
       <main className="min-h-screen overflow-hidden bg-home text-home-cream">
-        <Hero />
-        <Services />
-        <DiscoverMars />
-        <SpaceTravel />
+        <HeroPlanet />
+        <ImpactSection />
+        <SpaceCarousel />
         <MarsLandings />
-        <Reliability />
+        <WhyMartianMap />
       </main>
       <Footer />
     </>
