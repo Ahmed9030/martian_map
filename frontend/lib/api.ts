@@ -4,3 +4,4 @@ export * from "./api/errors";
 export * from "./api/client";
 export * from "./api/endpoints";
 export * from "./api/mappers";
+export * from "./api/mineralComposition";

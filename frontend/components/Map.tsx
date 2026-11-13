@@ -37,7 +37,7 @@ import { MAP_LAYER } from './map/layers';
 import { useMapSelection } from './map/useMapSelection';
 import type { DestinationRole } from './map/useMapSelection';
 import type { Vehicle } from '@/lib/api';
-import { TelemetryCard } from '@/components/ui/TelemetryCard';
+import { MineralComposition } from '@/components/ui/MineralComposition';
 
 
 const ROLE_COLORS: Record<DestinationRole, string> = {
@@ -886,44 +886,14 @@ const temperatureData = pathData?.path_data?.map((point) => ({
 )}
 
 
-      {/* ── Bottom-center telemetry ── */}
-<div
-  className={`absolute bottom-16 left-[80%] -translate-x-1/2 ${MAP_LAYER.panel} glass-panel rounded-xl p-1.5 text-white`}
->
-  <p className="mb-1 text-center text-[7px] font-semibold tracking-[1px] text-gray-400">
-    TELEMETRY
-  </p>
-
-    <div className="flex flex-col gap-1.5">
-      <TelemetryCard
-      title="Temperature"
-      value="210"
-      unit="K"
-      source="MRO / HiRISE"
-      progress={62}
-      detail="Average"
-      className="w-32"
-    />
-
-    <TelemetryCard
-      title="Slope"
-      value="12"
-      unit="°"
-      source="Terrain profile"
-      progress={20}
-      detail="Low risk"
-      className="w-32"
-    />
-
-    <TelemetryCard
-      title="Speed"
-      value="60"
-      unit="km/h"
-      source="Vehicle telemetry"
-      className="w-32"
-    />
-  </div>
-</div>
+      {/* ── Mineral Composition ── */}
+      <MineralComposition
+        h2o={pathData?.mean_H2O ?? null}
+        si={pathData?.mean_Si ?? null}
+        fe={pathData?.mean_Fe ?? null}
+        isLoading={pathLoading}
+        className={`absolute bottom-16 right-4 ${MAP_LAYER.panel}`}
+      />
 
       {/* ── Error overlay ── */}
       {(error || mapError) && (
