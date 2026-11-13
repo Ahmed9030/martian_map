@@ -1,0 +1,537 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "leaflet/dist/leaflet.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  color-scheme: dark;
+  --background-elevated: #19191d;
+  --surface: rgb(18 18 20 / 68%);
+  --surface-strong: rgb(18 18 20 / 82%);
+  --foreground-muted: #8a8ea3;
+  --foreground-secondary: #c9cbd6;
+  --foreground-subtle: #8a8ea3;
+  --border-subtle: rgb(255 255 255 / 12%);
+  --mars-orange: #e8743b;
+  --mars-orange-soft: rgb(232 116 59 / 16%);
+  --accent: oklch(0.97 0 0);
+  --accent-bright: #e8743b;
+  --accent-soft: rgb(232 116 59 / 16%);
+  --telemetry: #67d8f2;
+  --telemetry-soft: rgb(103 216 242 / 14%);
+
+  /* Home page palette */
+  --home-bg: #11152f;
+  --home-bg-deep: #101432;
+  --home-bg-soft: #161a33;
+  --home-panel: #151b3d;
+  --home-panel-alt: #171a3c;
+  --home-navy: #151a39;
+  --home-dusk: #20203c;
+  --home-plum: #282b49;
+  --home-card: #333344;
+  --home-card-deep: #292a3c;
+  --home-cream: #fff7ef;
+  --home-body: #ded5e3;
+  --home-muted: #c2bbd2;
+  --home-sand: #f4c098;
+  --home-glow: #ffbd91;
+  --home-ember: #ffad84;
+  --home-coral: #f18d68;
+  --home-gold: #d7c78b;
+  --home-lavender: #ddd5ed;
+  --home-ink: #211a2d;
+
+  --glass-shadow: 0 18px 50px rgb(0 0 0 / 35%);
+  --glass-highlight: inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 0 0 1px rgb(255 255 255 / 3%);
+  --button-primary: #3a3d47;
+  --button-primary-hover: #4a4d57;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-elevated: var(--background-elevated);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--foreground-muted);
+  --color-secondary: var(--foreground-secondary);
+  --color-subtle: var(--foreground-subtle);
+  --color-line: var(--border-subtle);
+  --color-mars: var(--mars-orange);
+  --color-mars-bright: var(--accent-bright);
+  --color-mars-soft: var(--mars-orange-soft);
+  --color-telemetry: var(--telemetry);
+  --color-telemetry-soft: var(--telemetry-soft);
+  --color-home: var(--home-bg);
+  --color-home-deep: var(--home-bg-deep);
+  --color-home-soft: var(--home-bg-soft);
+  --color-home-panel: var(--home-panel);
+  --color-home-panel-alt: var(--home-panel-alt);
+  --color-home-navy: var(--home-navy);
+  --color-home-dusk: var(--home-dusk);
+  --color-home-plum: var(--home-plum);
+  --color-home-card: var(--home-card);
+  --color-home-card-deep: var(--home-card-deep);
+  --color-home-cream: var(--home-cream);
+  --color-home-body: var(--home-body);
+  --color-home-muted: var(--home-muted);
+  --color-home-sand: var(--home-sand);
+  --color-home-glow: var(--home-glow);
+  --color-home-ember: var(--home-ember);
+  --color-home-coral: var(--home-coral);
+  --color-home-gold: var(--home-gold);
+  --color-home-lavender: var(--home-lavender);
+  --color-home-ink: var(--home-ink);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-orbitron), var(--font-geist-sans), ui-sans-serif,
+    system-ui, sans-serif;
+
+  --text-telemetry: 0.75rem;
+  --text-telemetry--line-height: 1rem;
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1rem;
+
+  --spacing-panel: 1.25rem;
+  --spacing-overlay: 1rem;
+  --radius-card: 1rem;
+  --radius-panel: 1.25rem;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+* {
+  border-color: var(--border-subtle);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--foreground);
+}
+
+@utility glass-panel {
+  background: linear-gradient(145deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 2%) 42%, var(--surface));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+@utility glass-card {
+  background: linear-gradient(145deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%) 46%, var(--surface));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+
+@utility telemetry-text {
+  color: var(--telemetry);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--text-telemetry);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: var(--text-telemetry--line-height);
+}
+
+/* Home hero art: layered gradients for the sky, star field, and planet. */
+@utility hero-sky {
+  background:
+    radial-gradient(ellipse at 77% 48%, rgb(163 72 58 / 20%), transparent 39%),
+    radial-gradient(ellipse at 43% 92%, rgb(193 89 65 / 13%), transparent 49%),
+    linear-gradient(
+      115deg,
+      var(--home-bg) 0%,
+      var(--home-navy) 56%,
+      var(--home-dusk) 100%
+    );
+}
+
+@utility hero-stars {
+  opacity: 0.62;
+  background-image:
+    radial-gradient(1px 1px at 10% 18%, #fff8f1 99%, transparent),
+    radial-gradient(1.5px 1.5px at 23% 64%, #ffc99f 99%, transparent),
+    radial-gradient(1px 1px at 40% 32%, #fff8f1 99%, transparent),
+    radial-gradient(1px 1px at 54% 17%, #fff8f1 99%, transparent),
+    radial-gradient(1.5px 1.5px at 76% 23%, #ffc99f 99%, transparent),
+    radial-gradient(1px 1px at 91% 68%, #fff8f1 99%, transparent),
+    radial-gradient(1px 1px at 65% 78%, #fff8f1 99%, transparent);
+  background-size: 290px 240px;
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 90%);
+}
+
+@utility planet-body {
+  background:
+    radial-gradient(
+      ellipse at 32% 24%,
+      rgb(255 218 166 / 89%) 0%,
+      rgb(248 169 111 / 48%) 13%,
+      transparent 31%
+    ),
+    radial-gradient(
+      ellipse at 28% 42%,
+      #f7a16b 0%,
+      #e8754c 30%,
+      #c54c36 57%,
+      #713039 79%,
+      #241b35 100%
+    );
+  box-shadow:
+    inset -72px -9px 95px 11px rgb(19 17 37 / 94%),
+    inset 12px 4px 38px rgb(255 218 168 / 45%),
+    -20px 2px 68px rgb(246 112 74 / 28%);
+}
+
+@utility planet-texture {
+  mix-blend-mode: soft-light;
+  background-image:
+    radial-gradient(
+      ellipse 9% 6% at 12% 30%,
+      rgb(99 38 35 / 96%) 0 34%,
+      transparent 76%
+    ),
+    radial-gradient(
+      ellipse 12% 7% at 30% 43%,
+      rgb(255 203 136 / 93%) 0 30%,
+      transparent 76%
+    ),
+    radial-gradient(
+      ellipse 10% 9% at 43% 24%,
+      rgb(96 35 37 / 98%) 0 36%,
+      transparent 78%
+    ),
+    radial-gradient(
+      ellipse 14% 7% at 65% 58%,
+      rgb(110 39 39 / 94%) 0 35%,
+      transparent 78%
+    ),
+    radial-gradient(
+      ellipse 10% 6% at 83% 34%,
+      rgb(255 190 130 / 89%) 0 32%,
+      transparent 76%
+    ),
+    radial-gradient(
+      ellipse 11% 9% at 92% 70%,
+      rgb(100 36 39 / 96%) 0 36%,
+      transparent 78%
+    ),
+    repeating-linear-gradient(
+      169deg,
+      transparent 0 29px,
+      rgb(255 221 171 / 32%) 31px 35px,
+      transparent 38px 68px
+    );
+  background-repeat: repeat-x;
+  background-size: 50% 100%;
+}
+
+@utility planet-highlight {
+  background:
+    linear-gradient(
+      100deg,
+      transparent 37%,
+      rgb(255 230 195 / 19%) 45%,
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse at 18% 44%,
+      transparent 42%,
+      rgb(25 17 36 / 16%) 74%,
+      rgb(18 14 29 / 67%) 100%
+    );
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+
+/* Glass Zoom Controls */
+.leaflet-container .leaflet-control-zoom {
+  position: absolute !important;
+  right: 940px !important;
+  bottom: 250px !important;
+
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+
+  background: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 8%),
+    rgb(255 255 255 / 2%) 46%,
+    var(--surface)
+  ) !important;
+
+  box-shadow: var(--glass-shadow), var(--glass-highlight) !important;
+
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+}
+
+/* Zoom + and - buttons */
+.leaflet-container .leaflet-control-zoom a {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 30px !important;
+
+  background: transparent !important;
+  color: var(--telemetry) !important;
+
+  border: none !important;
+  font-size: 23px !important;
+  font-weight: 300 !important;
+
+  transition: background 0.2s ease, color 0.2s ease !important;
+}
+
+.leaflet-container .leaflet-control-zoom a:hover {
+  background: rgb(255 255 255 / 10%) !important;
+  color: white !important;
+}
+
+.leaflet-container .leaflet-control-zoom-in {
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+/* Reset button */
+.leaflet-container .leaflet-control-zoom .leaflet-control-reset-view {
+  position: relative !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+
+  color: var(--telemetry) !important;
+  background: transparent !important;
+  box-sizing: border-box;
+}
+
+.leaflet-container .leaflet-control-zoom .leaflet-control-reset-view:hover {
+  background: rgb(255 255 255 / 10%) !important;
+  color: white !important;
+}
+
+/* Scale Bar */
+
+.mars-scale-control {
+  background: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 8%),
+    rgb(255 255 255 / 2%) 46%,
+    var(--surface)
+  );
+
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1px 12px;
+  color: white;
+  font-family: sans-serif;
+  min-width: 140px;
+
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+
+  transform: translate(350px, -220px);
+}
+
+.mars-scale-labels {
+  color: var(--foreground-secondary);
+}
+
+.mars-scale-unit {
+  color: var(--telemetry);
+}
+
+
+.mars-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  color: #e2e8f0;
+  margin-bottom: 3px;
+}
+
+.mars-scale-bar {
+  display: flex;
+  height: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+}
+
+.mars-scale-bar div {
+  flex: 1;
+  border-right: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.mars-scale-bar div:nth-child(odd) {
+  background: #e2e8f0;
+}
+
+.mars-scale-bar div:nth-child(even) {
+  background: #334155;
+}
+
+.mars-scale-bar div:last-child {
+  border-right: none;
+}
+
+.mars-scale-unit {
+  text-align: right;
+  font-size: 7px;
+  color: #67e8f9;
+  letter-spacing: 1px;
+  margin-top: -6px;
+  position: relative;
+  transform: translateY(-2px);
+}
+
+/* Leaflet bottom controls position */
+.leaflet-bottom.leaflet-right {
+  bottom: -30px;
+}
+
