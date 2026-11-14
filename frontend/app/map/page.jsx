@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import Map from "@/components/Map";
+import { OnboardingProvider } from "@/components/onboarding";
 import { Navbar } from "@/components/ui/Navbar";
 
 export default function MapPage() {
   return (
-    <>
+    <OnboardingProvider>
       <Navbar />
       <main className="relative">
         <Suspense
@@ -17,6 +18,6 @@ export default function MapPage() {
           <Map />
         </Suspense>
       </main>
-    </>
+    </OnboardingProvider>
   );
 }

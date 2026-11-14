@@ -14,6 +14,8 @@ declare module "leaflet" {
     on(event: string, fn: (event?: unknown) => void): this;
     once(event: string, fn: () => void): this;
     setIcon(icon: unknown): this;
+    /** SVG element of a vector layer, once it is on the map. */
+    getElement(): Element | undefined;
     destinationRole?: string | null;
   }
 

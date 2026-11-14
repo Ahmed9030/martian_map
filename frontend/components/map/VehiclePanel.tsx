@@ -53,6 +53,7 @@ export function VehiclePanel({ children, isLoading, hasError, isEmpty }: Vehicle
       <button
         ref={launcherRef}
         type="button"
+        data-tour="vehicle-launcher"
         aria-expanded={isOpen}
         aria-controls="vehicle-selector-panel"
         aria-label={isOpen ? 'Close vehicle selector' : 'Open vehicle selector'}
@@ -70,6 +71,7 @@ export function VehiclePanel({ children, isLoading, hasError, isEmpty }: Vehicle
       <div
         id="vehicle-selector-panel"
         ref={panelRef}
+        data-tour="vehicle-panel"
         onKeyDown={handleKeyDown}
         aria-hidden={!isOpen}
         inert={!isOpen}

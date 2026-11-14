@@ -3,9 +3,18 @@
 import { useMapData } from '@/hooks/useMapData';
 import { usePath } from '@/hooks/usePath';
 import { useVehicles } from '@/hooks/useVehicles';
-import { getRevisitFlight, vehicleToPathParams } from '@/lib/api';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { getPath, getRevisitFlight, getVehicles, vehicleToPathParams } from '@/lib/api';
+import type { PathData, PathParams } from '@/lib/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import {
+  createSamplePath,
+  isUsableVehicle,
+  summarizePath,
+  TOUR_FALLBACK_LIMITS,
+  useOnboarding,
+} from '@/components/onboarding';
+import type { TourScenarioResult } from '@/components/onboarding';
 import {
   AreaChart,
   Area,
@@ -19,7 +28,6 @@ import {
 } from 'recharts';
 
 import {
-  Orbit,
   MapPin,
   Flag,
   FlaskConical,
@@ -80,6 +88,18 @@ const WEIGHT_FIELDS = [
 ] as const;
 
 const DEFAULT_MAX_SLOPE = 15;
+
+/** Give the example route request a short budget before falling back. */
+const TOUR_DEMO_TIMEOUT_MS = 9000;
+
+interface TourDemoScenario {
+  path: PathData;
+  sample: boolean;
+}
+
+function isUsableDestination(destination: Destination): boolean {
+  return Number.isFinite(Number(destination.x_coord)) && Number.isFinite(Number(destination.y_coord));
+}
 
 const RISK_LABEL: Record<string, string> = {
   low: 'Low',
@@ -201,6 +221,15 @@ export default function Map() {
   } = useMapSelection();
 
   const { data, isLoading, error } = useMapData(selectedMap);
+
+  // ── Onboarding tour demo ────────────────────────────────────────────────
+  // The tour asks the map for a ready-made scenario; the map owns the drawing
+  // and reports the real numbers back so the tooltip can show them.
+  const { registerMapController } = useOnboarding();
+  const [tourDemo, setTourDemo] = useState<TourDemoScenario | null>(null);
+  const [tourDemoLoading, setTourDemoLoading] = useState(false);
+  const tourModeRef = useRef(false);
+  const tourAbortRef = useRef<AbortController | null>(null);
 
   // ── Click-to-pick plumbing ──────────────────────────────────────────────
   // Refs keep the Leaflet event handlers (created once per map) in sync with
@@ -738,6 +767,9 @@ if (Array.isArray(data!.destination)) {
 
   // ── Path calculation ────────────────────────────────────────────────────
   useEffect(() => {
+    // The tour demo runs its own request (without recording a visit).
+    if (tourModeRef.current) return;
+
     const start = assignments.Start;
     const end = assignments.End;
 
@@ -824,6 +856,126 @@ if (Array.isArray(data!.destination)) {
     resetPath();
     if (mode === 'science') setMode('fast');
   }
+
+  // ── Onboarding demo: load a ready-made scenario ─────────────────────────
+  const runTourScenario = useCallback(async (): Promise<TourScenarioResult> => {
+    const bounds = boundsRef.current;
+    const mapData = data;
+    if (!bounds || !mapData) {
+      throw new Error('The map is still loading.');
+    }
+
+    tourAbortRef.current?.abort();
+    const controller = new AbortController();
+    tourAbortRef.current = controller;
+    tourModeRef.current = true;
+
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, TOUR_DEMO_TIMEOUT_MS);
+
+    const destinations = (mapData.destination ?? []).filter(isUsableDestination);
+    const fallbackPoint = (fraction: number, offset: number) => ({
+      x: bounds.left + (bounds.right - bounds.left) * fraction,
+      y: bounds.bottom + (bounds.top - bounds.bottom) * (0.5 + offset),
+    });
+    const startCrs = destinations[0]
+      ? { x: Number(destinations[0].x_coord), y: Number(destinations[0].y_coord) }
+      : fallbackPoint(0.32, -0.06);
+    const endCrs = destinations[1]
+      ? { x: Number(destinations[1].x_coord), y: Number(destinations[1].y_coord) }
+      : fallbackPoint(0.68, 0.08);
+
+    const start = createPickedPoint('Start', startCrs, selectedMap);
+    const end = createPickedPoint('End', endCrs, selectedMap);
+
+    setTourDemo(null);
+    setTourDemoLoading(true);
+    setScienceRunKey(null);
+    setMode('fast');
+    setAssignments({ Start: start, End: end, 'Science Target': null });
+    setSelectedDestination(null);
+
+    try {
+      let vehicle = vehicles?.find(isUsableVehicle) ?? null;
+      if (!vehicle) {
+        try {
+          vehicle = (await getVehicles()).find(isUsableVehicle) ?? null;
+        } catch {
+          vehicle = null;
+        }
+      }
+
+      const limits = vehicle ? vehicleToPathParams(vehicle) : TOUR_FALLBACK_LIMITS;
+      const params: PathParams = {
+        map: selectedMap,
+        startX: start.x_coord,
+        startY: start.y_coord,
+        endX: end.x_coord,
+        endY: end.y_coord,
+        ...limits,
+        maxSlope: effectiveMaxSlope,
+        // Never record a visit for the tour's demo route.
+        record: '0',
+      };
+
+      const path = await getPath(params, { signal: controller.signal });
+      if (controller.signal.aborted) throw new Error('The example was cancelled.');
+      setTourDemo({ path, sample: false });
+      return { result: summarizePath(path), sample: false };
+    } catch {
+      // A cancelled demo (tour closed) must not paint fallback data.
+      if (!timedOut && controller.signal.aborted) {
+        throw new Error('The example was cancelled.');
+      }
+      const samplePath = createSamplePath(startCrs, endCrs);
+      setTourDemo({ path: samplePath, sample: true });
+      return { result: summarizePath(samplePath), sample: true };
+    } finally {
+      clearTimeout(timeoutId);
+      setTourDemoLoading(false);
+      if (tourAbortRef.current === controller) tourAbortRef.current = null;
+    }
+  }, [
+    data,
+    effectiveMaxSlope,
+    selectedMap,
+    setAssignments,
+    setSelectedDestination,
+    vehicles,
+  ]);
+
+  /** Restores the map to its pre-tour state (only if the demo is active). */
+  const clearTourScenario = useCallback(() => {
+    if (!tourModeRef.current) return;
+    tourModeRef.current = false;
+    tourAbortRef.current?.abort();
+    tourAbortRef.current = null;
+    setTourDemo(null);
+    setTourDemoLoading(false);
+    setAssignments({ Start: null, End: null, 'Science Target': null });
+    setSelectedDestination(null);
+    resetPath();
+  }, [resetPath, setAssignments, setSelectedDestination]);
+
+  // Keep the latest closures reachable from the stable controller below.
+  const tourScenarioRef = useRef(runTourScenario);
+  const clearTourScenarioRef = useRef(clearTourScenario);
+
+  useEffect(() => {
+    tourScenarioRef.current = runTourScenario;
+    clearTourScenarioRef.current = clearTourScenario;
+  }, [runTourScenario, clearTourScenario]);
+
+  useEffect(() => {
+    registerMapController({
+      runScenario: () => tourScenarioRef.current(),
+      clearScenario: () => clearTourScenarioRef.current(),
+    });
+    return () => registerMapController(null);
+  }, [registerMapController]);
 
   // ── Route drawing ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -913,10 +1065,84 @@ if (Array.isArray(data!.destination)) {
     return () => { cancelled = true; };
   }, [pathData, scienceRoute, mode]);
 
+  // ── Onboarding demo route (drawn with a progressive line animation) ─────
+  useEffect(() => {
+    let cancelled = false;
+
+    async function drawTourRoute() {
+      const layer = routeLayerRef.current;
+      if (!layer) return;
+
+      layer.clearLayers();
+      if (!tourDemo) return;
+
+      const leaflet = await import('leaflet');
+      const L = leaflet.default;
+      if (cancelled) return;
+
+      const coordinates = tourDemo.path.path_data
+        .map((point) =>
+          crsToMap(Number(point.X_coordinate), Number(point.Y_coordinate), boundsRef.current),
+        )
+        .filter(({ lat, lng }) => Number.isFinite(lat) && Number.isFinite(lng))
+        .map(({ lat, lng }) => [lat, lng] as [number, number]);
+
+      if (coordinates.length < 2) return;
+
+      L.polyline(coordinates, {
+        color: '#fbbf24',
+        weight: 12,
+        opacity: 0.15,
+        lineCap: 'butt',
+        lineJoin: 'round',
+      }).addTo(layer);
+      L.polyline(coordinates, {
+        color: '#d97706',
+        weight: 6,
+        opacity: 0.5,
+        lineCap: 'butt',
+        lineJoin: 'round',
+      }).addTo(layer);
+      const mainLine = L.polyline(coordinates, {
+        color: '#fde68a',
+        weight: 2.5,
+        opacity: 1,
+        lineCap: 'butt',
+        lineJoin: 'round',
+      });
+      mainLine.addTo(layer);
+
+      const element = mainLine.getElement() as SVGPathElement | undefined;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!element || reduceMotion || typeof element.getTotalLength !== 'function') return;
+
+      const length = element.getTotalLength();
+      element.style.strokeDasharray = `${length}`;
+      element.style.strokeDashoffset = `${length}`;
+      element.animate(
+        [{ strokeDashoffset: length }, { strokeDashoffset: 0 }],
+        { duration: 1400, easing: 'ease-out', fill: 'forwards' },
+      );
+    }
+
+    void drawTourRoute();
+    return () => { cancelled = true; };
+  }, [tourDemo]);
+
 // The charts and analytics always describe the route the astronaut is viewing.
-const activePath = mode === 'science' ? scienceRoute : pathData;
-const activePathLoading = mode === 'science' ? scienceRouteLoading : pathLoading;
-const activePathError = mode === 'science' ? scienceRouteError : pathError;
+// While the tour demo is on the map its route stands in for the fast route.
+const fastPath = tourDemo?.path ?? pathData;
+const activePath = tourDemo?.path ?? (mode === 'science' ? scienceRoute : pathData);
+const activePathLoading = tourDemo
+  ? tourDemoLoading
+  : mode === 'science'
+    ? scienceRouteLoading
+    : pathLoading;
+const activePathError = tourDemo
+  ? null
+  : mode === 'science'
+    ? scienceRouteError
+    : pathError;
 
 const temperatureData = activePath?.path_data?.map((point) => ({
   distance: Number(point.Distance_km),
@@ -961,11 +1187,12 @@ const temperatureData = activePath?.path_data?.map((point) => ({
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div
-      className="relative isolate w-full"
+      className={`relative isolate w-full ${tourDemo ? 'tour-demo-active' : ''}`}
       style={{ height: 'calc(113vh - 80px)', minHeight: '0' }}
     >
       {/* ── Top bar: Map toggle ── */}
       <div
+        data-tour="map-switcher"
         className={`absolute top-30 left-[75%] -translate-x-1/2 ${MAP_LAYER.topBar} flex gap-2 rounded-xl bg-[#121214] p-2 shadow-lg pointer-events-auto`}
       >
         {([1, 2] as const).map((mapNum) => (
@@ -997,6 +1224,7 @@ const temperatureData = activePath?.path_data?.map((point) => ({
      
 {/* ── Left panel: Destinations + Route analytics ── */}
 <div
+  data-tour="destinations-panel"
   className={`absolute top-28 left-4 ${MAP_LAYER.panel} max-h-[calc(100vh-8rem)] w-56 overflow-y-auto glass-panel rounded-xl p-3 text-white`}
 >
   {/* Destinations header */}
@@ -1090,7 +1318,7 @@ const temperatureData = activePath?.path_data?.map((point) => ({
   <div className="my-2.5 h-px bg-white/10" />
 
   {/* Route analytics */}
-  <div className="mb-2 flex items-center justify-between">
+  <div className="mb-2 flex items-center justify-between" data-tour="route-analytics">
     <div className="flex items-center gap-1.5">
       <Route size={14} className="text-cyan-400" />
       <p className="text-[9px] font-semibold tracking-[1.5px] text-gray-400">
@@ -1211,8 +1439,8 @@ const temperatureData = activePath?.path_data?.map((point) => ({
   )}
 
   {/* Route comparison */}
-  {(pathData || scienceRoute) && (
-    <div className="mt-2.5">
+  {(fastPath || scienceRoute) && (
+    <div className="mt-2.5" data-tour="route-comparison">
       <p className="mb-1 text-[8px] font-semibold tracking-[1.5px] text-gray-500">
         ROUTE COMPARISON
       </p>
@@ -1230,8 +1458,8 @@ const temperatureData = activePath?.path_data?.map((point) => ({
             A · Fast
           </span>
           <span className="text-[9px] text-gray-400">
-            {pathData
-              ? `${formatDistanceKm(pathData.route_length_km)} · ${formatHours(pathData.estimated_time_hours)}`
+            {fastPath
+              ? `${formatDistanceKm(fastPath.route_length_km)} · ${formatHours(fastPath.estimated_time_hours)}`
               : '--'}
           </span>
         </button>
@@ -1258,9 +1486,9 @@ const temperatureData = activePath?.path_data?.map((point) => ({
         </button>
       </div>
 
-      {pathData && scienceRoute && (
+      {fastPath && scienceRoute && (
         <p className="mt-1 text-[8px] text-gray-500">
-          Slope risk · A {RISK_LABEL[getRiskLevel(pathData.maximum_slope, effectiveMaxSlope)]} ·
+          Slope risk · A {RISK_LABEL[getRiskLevel(fastPath.maximum_slope, effectiveMaxSlope)]} ·
           B {RISK_LABEL[getRiskLevel(scienceRoute.maximum_slope, effectiveMaxSlope)]}
         </p>
       )}
@@ -1281,7 +1509,7 @@ const temperatureData = activePath?.path_data?.map((point) => ({
 
           {/* Elevation Profile */}
     {assignments.Start && assignments.End && (
-    <div className={`absolute bottom-3 right-1/2 mr-1.5 z-[1000] ${MAP_LAYER.panel} glass-panel h-fit w-[min(22.5rem,calc(50vw-0.75rem))] rounded-xl p-3 text-white`}>  <p className="text-[10px] font-semibold tracking-[2px] text-gray-400">
+    <div data-tour="terrain-profile" className={`absolute bottom-3 right-1/2 mr-1.5 z-[1000] ${MAP_LAYER.panel} glass-panel h-fit w-[min(22.5rem,calc(50vw-0.75rem))] rounded-xl p-3 text-white`}>  <p className="text-[10px] font-semibold tracking-[2px] text-gray-400">
       ELEVATION PROFILE
     </p>
     <span className="text-[9px] text-orange-400">Elevation (m)</span>
@@ -1413,7 +1641,7 @@ const temperatureData = activePath?.path_data?.map((point) => ({
 
 {/* Temperature Profile */}
 {assignments.Start && assignments.End && (
-  <div className={`absolute bottom-3 left-1/2 ml-1.5 z-[1000] ${MAP_LAYER.panel} glass-panel h-fit w-[min(22.5rem,calc(50vw-0.75rem))] rounded-xl p-3 text-white`}>
+  <div data-tour="temperature-profile" className={`absolute bottom-3 left-1/2 ml-1.5 z-[1000] ${MAP_LAYER.panel} glass-panel h-fit w-[min(22.5rem,calc(50vw-0.75rem))] rounded-xl p-3 text-white`}>
     <p className="text-[10px] font-semibold tracking-[2px] text-gray-400">
       TEMPERATURE PROFILE
     </p>
@@ -1524,13 +1752,14 @@ const temperatureData = activePath?.path_data?.map((point) => ({
 
 
       {/* ── Mineral Composition ── */}
-      <MineralComposition
-        h2o={activePath?.mean_H2O ?? null}
-        si={activePath?.mean_Si ?? null}
-        fe={activePath?.mean_Fe ?? null}
-        isLoading={activePathLoading}
-        className={`absolute bottom-16 right-4 ${MAP_LAYER.panel}`}
-      />
+      <div data-tour="mineral-composition" className={`absolute bottom-16 right-4 ${MAP_LAYER.panel}`}>
+        <MineralComposition
+          h2o={activePath?.mean_H2O ?? null}
+          si={activePath?.mean_Si ?? null}
+          fe={activePath?.mean_Fe ?? null}
+          isLoading={activePathLoading}
+        />
+      </div>
 
       {/* ── Error overlay ── */}
       {(error || mapError) && (
@@ -1543,6 +1772,7 @@ const temperatureData = activePath?.path_data?.map((point) => ({
 
             {/* Map canvas */}
       <div
+        data-tour="map-canvas"
         ref={mapContainerRef}
         aria-label="Interactive Mars map"
         style={{ height: '100%', width: '100%' }}

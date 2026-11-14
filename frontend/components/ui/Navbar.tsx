@@ -1,6 +1,7 @@
 "use client";
 
 import { MAP_LAYER } from '@/components/map/layers';
+import { TourHelpButton } from '@/components/onboarding';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -63,6 +64,8 @@ export function Navbar() {
             })}
           </NavigationMenuList>
         </NavigationMenu>
+
+        {pathname === "/map" ? <TourHelpButton /> : null}
 
       </div>
     </header>
