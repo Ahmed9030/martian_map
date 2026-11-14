@@ -1,7 +1,16 @@
-import { apiGet } from "./client";
+import { apiGet, apiPost } from "./client";
 import { ApiError } from "./errors";
+import { getProfileToken } from "@/lib/profile/storage";
 import type { ApiRequestOptions } from "./client";
-import type { MapData, PathData, PathParams, Vehicle } from "./types";
+import type {
+  CreateProfileResponse,
+  FlightRecord,
+  FlightsResponse,
+  MapData,
+  PathData,
+  PathParams,
+  Vehicle,
+} from "./types";
 
 export async function getMap(
   mapId: number | string,
@@ -68,6 +77,10 @@ export async function getPath(
 ): Promise<PathData> {
   validatePathParams(params);
 
+  // The backend records the visit when a valid profile token is present.
+  // `record: "0"` replays a stored visit without logging a duplicate.
+  const token = params.token ?? getProfileToken() ?? undefined;
+
   const queryParams: Record<string, string | number | boolean | undefined | null> = {
     map: params.map,
     startX: params.startX,
@@ -84,9 +97,41 @@ export async function getPath(
     h2o: params.h2o,
     fe: params.fe,
     si: params.si,
-    maxRadiation: params.maxRadiation,
+    token,
+    record: params.record,
   };
 
-  // TODO: The backend README shows maxRadiation in examples, but the params table omits it; keep the runtime support while documenting the inconsistency.
   return apiGet<PathData>("/path/", queryParams, options);
+}
+
+/** Creates a new astronaut profile and returns its token. */
+export async function createProfile(
+  name: string,
+  options: ApiRequestOptions = {},
+): Promise<CreateProfileResponse> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new ApiError({
+      kind: "http",
+      status: 400,
+      message: "Enter a name for your profile.",
+    });
+  }
+  return apiPost<CreateProfileResponse>("/createastro/", { name: trimmed }, options);
+}
+
+/** Lists the visits recorded for a profile, newest first. */
+export async function getFlights(
+  token: string,
+  options: ApiRequestOptions = {},
+): Promise<FlightsResponse> {
+  return apiGet<FlightsResponse>("/flights/", { token }, options);
+}
+
+/** Loads a stored visit's parameters for replay. */
+export async function getRevisitFlight(
+  flightId: number | string,
+  options: ApiRequestOptions = {},
+): Promise<FlightRecord> {
+  return apiGet<FlightRecord>("/revisit/", { id: flightId, format: "json" }, options);
 }

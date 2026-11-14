@@ -21,7 +21,6 @@ export interface Vehicle {
   description: string | null;
   photo: string | null;
   maxSpead: number;
-  maxRad: number;
   maxEle: number;
   maxTherm: number;
   maxWind: number;
@@ -50,7 +49,9 @@ export interface PathParams {
   h2o?: number;
   fe?: number;
   si?: number;
-  maxRadiation?: number;
+  token?: string;
+  /** Set to "0" to replay a visit without recording a new one. */
+  record?: "0" | "1";
 }
 
 export interface PathCoordinates {
@@ -86,6 +87,8 @@ export interface PathPoint {
   max_therm: number;
   /** Night-side temperature for this step, as returned by `GET /path/`. */
   min_therm: number;
+  /** Wind speed at this step, in m/s (added by the backend). */
+  Wind?: number;
   H2O: number;
   Fe: number;
   Si: number;
@@ -106,6 +109,39 @@ export interface PathData {
   mean_Fe: number;
   mean_Si: number;
   mean_H2O: number;
+  /** Mean of (day + night) / 2 temperature along the route, in K. */
+  mean_therm?: number;
+  /** Mean wind speed along the route, in m/s. */
+  mean_wind_speed?: number;
 }
 
 export type PathResponse = PathData;
+
+export interface CreateProfileResponse {
+  token: string;
+  name: string;
+}
+
+/** A recorded visit, as returned by `GET /flights/` and `GET /revisit/`. */
+export interface FlightRecord {
+  id: number;
+  map_id: number | null;
+  map_title: string | null;
+  x_start_coord: number;
+  y_start_coord: number;
+  x_end_coord: number;
+  y_end_coord: number;
+  maxSpeed: number;
+  maxEle: number;
+  maxTherm: number;
+  maxWind: number;
+  minTherm: number;
+  mode: string | null;
+  created_at: string | null;
+  estimated_time: number | null;
+  distance_km: number | null;
+}
+
+export interface FlightsResponse {
+  flights: FlightRecord[];
+}

@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('maps', '0006_alter_flight_mode'),
+        ('maps', '0007_alter_flight_mode'),
     ]
 
     operations = [

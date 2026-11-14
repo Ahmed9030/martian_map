@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "./config";
 import { ApiError, getFriendlyApiMessage } from "./errors";
 import { vehicleToPathParams } from "./mappers";
+import { getProfileToken } from "@/lib/profile/storage";
 import type { BuildPathQueryOptions, PathData } from "./types";
 
 export const DEFAULT_MAX_SLOPE = 15;
@@ -49,7 +50,6 @@ export function buildPathQuery(options: BuildPathQueryOptions): string {
   addNumber(query, "maxSlope", vehicleParams.maxSlope);
   addNumber(query, "maxTherm", vehicleParams.maxTherm);
   addNumber(query, "minTherm", vehicleParams.minTherm);
-  addNumber(query, "maxRadiation", vehicleParams.maxRadiation);
   addNumber(query, "maxWind", vehicleParams.maxWind);
   addNumber(query, "speed", vehicleParams.speed);
 
@@ -72,6 +72,13 @@ export function buildPathQuery(options: BuildPathQueryOptions): string {
     addNumber(query, "h2o", weights.h2o);
     addNumber(query, "fe", weights.fe);
     addNumber(query, "si", weights.si);
+  }
+
+  // Keep the profile token last so the URL still reads as route parameters
+  // first; the backend uses it to record the visit.
+  const token = getProfileToken();
+  if (token) {
+    query.set("token", token);
   }
 
   return `${API_BASE_URL}/path/?${query.toString()}`;

@@ -183,3 +183,88 @@ export async function apiGet<T>(
 export function buildApiQueryString(params: QueryParams): string {
   return buildQueryString(params);
 }
+
+/**
+ * Sends a JSON or form-encoded POST and normalises failures into `ApiError`,
+ * mirroring `apiGet`.
+ */
+export async function apiPost<T>(
+  path: string,
+  body: Record<string, string> = {},
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_API_TIMEOUT_MS;
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const timeoutId = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(buildApiUrl(path), {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams(body).toString(),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let payload: unknown = null;
+      try {
+        payload = await getResponseBody(response);
+      } catch {
+        payload = "";
+      }
+
+      const rawMessage = getErrorPayload(payload) || `HTTP ${response.status}`;
+      throw new ApiError({
+        kind: "http",
+        status: response.status,
+        message: getFriendlyApiMessage(rawMessage),
+        details: rawMessage,
+      });
+    }
+
+    try {
+      const payload = await getResponseBody(response);
+      return payload as T;
+    } catch (error) {
+      throw new ApiError({
+        kind: "parse",
+        message: "The API response was not valid JSON.",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError({
+        kind: timedOut ? "timeout" : "aborted",
+        status: timedOut ? 408 : undefined,
+        message: timedOut
+          ? `The API request timed out after ${timeoutMs} ms.`
+          : "The API request was cancelled.",
+      });
+    }
+
+    if (error instanceof Error) {
+      throw new ApiError({
+        kind: "network",
+        message: `Network error while requesting ${API_BASE_URL}${path}: ${error.message}`,
+        details: error.message,
+      });
+    }
+
+    throw new ApiError({ kind: "api", message: "Unexpected API error." });
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}

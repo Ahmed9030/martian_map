@@ -3,8 +3,9 @@
 import { useMapData } from '@/hooks/useMapData';
 import { usePath } from '@/hooks/usePath';
 import { useVehicles } from '@/hooks/useVehicles';
-import { vehicleToPathParams } from '@/lib/api';
+import { getRevisitFlight, vehicleToPathParams } from '@/lib/api';
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   AreaChart,
   Area,
@@ -59,6 +60,9 @@ export default function Map() {
   // ── Vehicle state ───────────────────────────────────────────────────────
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [vehicleIndex, setVehicleIndex] = useState(0);
+  // When arriving from a recorded visit, its stored limits override the
+  // currently selected vehicle until the astronaut picks a vehicle manually.
+  const [replayVehicle, setReplayVehicle] = useState<Vehicle | null>(null);
 
   // Derive active vehicle ID: user selection takes precedence, defaulting to vehicles[0]
   const activeVehicleId =
@@ -73,7 +77,13 @@ export default function Map() {
   const routeLayerRef = useRef<Layer | null>(null);
   const destinationModeRef = useRef<DestinationRole>('Start');
 
-  const [selectedMap, setSelectedMap] = useState(1);
+  const searchParams = useSearchParams();
+  const flightParam = searchParams.get('flight');
+  const mapParam = searchParams.get('map');
+
+  const [selectedMap, setSelectedMap] = useState(() =>
+    mapParam && /^\d+$/.test(mapParam) ? Number(mapParam) : 1,
+  );
   const [mapLoading, setMapLoading] = useState(true);
   const [mapError, setMapError] = useState('');
 
@@ -88,6 +98,51 @@ export default function Map() {
   } = useMapSelection();
 
   const { data, isLoading, error } = useMapData(selectedMap);
+
+  // ── Deep links: /map?flight=<id> replays a visit, /map?map=<id> picks a map ──
+  useEffect(() => {
+    if (flightParam) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const flight = await getRevisitFlight(flightParam);
+          if (cancelled) return;
+          setReplayVehicle({
+            id: -1,
+            name: `Recorded visit #${flight.id}`,
+            description: null,
+            photo: null,
+            maxSpead: flight.maxSpeed,
+            maxEle: flight.maxEle,
+            maxTherm: flight.maxTherm,
+            maxWind: flight.maxWind,
+            minTherm: flight.minTherm,
+          });
+          if (flight.map_id) setSelectedMap(flight.map_id);
+          const asDestination = (role: DestinationRole, x: number, y: number) => ({
+            id: -1,
+            title: role,
+            description: null,
+            photo: null,
+            x_coord: x,
+            y_coord: y,
+            map_id: flight.map_id,
+          });
+          setAssignments({
+            Start: asDestination('Start', flight.x_start_coord, flight.y_start_coord),
+            End: asDestination('End', flight.x_end_coord, flight.y_end_coord),
+            'Science Target': null,
+          });
+        } catch {
+          // A bad link should leave the map in its normal empty state.
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+  }, [flightParam, setAssignments]);
 
   // Keep ref in sync with state so marker callbacks always see the latest value
   useEffect(() => {
@@ -389,12 +444,13 @@ if (Array.isArray(data!.destination)) {
     const start = assignments.Start;
     const end = assignments.End;
 
-    if (!start || !end || !selectedVehicle) {
+    const routeVehicle = replayVehicle ?? selectedVehicle;
+    if (!start || !end || !routeVehicle) {
       resetPath();
       return;
     }
 
-    const params = vehicleToPathParams(selectedVehicle);
+    const params = vehicleToPathParams(routeVehicle);
     runPath({
       map: selectedMap,
       startX: Number(start.x_coord),
@@ -402,11 +458,15 @@ if (Array.isArray(data!.destination)) {
       endX: Number(end.x_coord),
       endY: Number(end.y_coord),
       ...params,
+      // Replaying a visit must not create a duplicate visit entry.
+      record: flightParam ? '0' : undefined,
     });
   }, [
     assignments.Start,
     assignments.End,
     selectedVehicle,
+    replayVehicle,
+    flightParam,
     selectedMap,
     runPath,
     resetPath,
@@ -499,6 +559,7 @@ const temperatureData = pathData?.path_data?.map((point) => ({
   // ── Vehicle nav helpers ─────────────────────────────────────────────────
   function nextVehicle() {
     if (!vehicles?.length) return;
+    setReplayVehicle(null);
     const next = (vehicleIndex + 1) % vehicles.length;
     setVehicleIndex(next);
     setSelectedVehicleId(String(vehicles[next].id));
@@ -506,12 +567,14 @@ const temperatureData = pathData?.path_data?.map((point) => ({
 
   function previousVehicle() {
     if (!vehicles?.length) return;
+    setReplayVehicle(null);
     const prev = (vehicleIndex - 1 + vehicles.length) % vehicles.length;
     setVehicleIndex(prev);
     setSelectedVehicleId(String(vehicles[prev].id));
   }
 
   function handleVehicleSelect(vehicle: Vehicle) {
+    setReplayVehicle(null);
     setSelectedVehicleId(String(vehicle.id));
   }
 
@@ -520,6 +583,7 @@ const temperatureData = pathData?.path_data?.map((point) => ({
     if (selectedMap === mapNumber) return;
     setMapLoading(true);
     setMapError('');
+    setReplayVehicle(null);
     setSelectedMap(mapNumber);
     setAssignments({ Start: null, End: null, 'Science Target': null });
     closeDetails();

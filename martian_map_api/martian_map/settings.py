@@ -90,6 +90,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
         },
+        'DISABLE_SERVER_SIDE_CURSORS': True,
     }
 }
 

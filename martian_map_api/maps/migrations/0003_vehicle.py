@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
                 ('description', models.TextField(blank=True, default=None, null=True)),
                 ('photo', models.URLField(blank=True, default=None, null=True)),
                 ('maxSpead', models.FloatField()),
-                ('maxRad', models.FloatField()),
+                ('maxRad', models.FloatField(blank=True, default=None, null=True)),
                 ('maxEle', models.FloatField()),
                 ('maxTherm', models.FloatField()),
                 ('minTherm', models.FloatField()),

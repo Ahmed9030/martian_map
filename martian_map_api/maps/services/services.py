@@ -274,8 +274,9 @@ def getLeastCostRoute(coordinates, tifFiles, safelimites, resource_weights=None)
         "Y_coordinate": y_coords,
         "Elevation": pathElevations,
         "Slope_Degrees": pathSlopes,
-        "max_therm": pathThermDay,   
-        "min_therm": pathThermNight, 
+        "max_therm": pathThermDay,
+        "min_therm": pathThermNight,
+        "Wind": pathWind,
         "H2O": pathH2O,
         "Fe": pathFe,
         "Si": pathSi,
@@ -292,7 +293,9 @@ def getLeastCostRoute(coordinates, tifFiles, safelimites, resource_weights=None)
     simplified_df["Step"] = range(1, len(simplified_df) + 1)
     rover_speed = float(safelimites.get('speed', 1.0))
     estimated_time_hours = route_length_km / rover_speed if rover_speed > 0 else 0.0
-    
+
+    mean_therm_k = float(((pathThermDay + pathThermNight) / 2.0).mean())
+
     return {
         "path_data": simplified_df.to_dict(orient="records"),
         "route_length_km": round(route_length_km, 2),
@@ -301,10 +304,12 @@ def getLeastCostRoute(coordinates, tifFiles, safelimites, resource_weights=None)
         "mean_Fe": round(float(pathFe.mean()), 2),
         "mean_Si": round(float(pathSi.mean()), 2),
         "mean_H2O": round(float(pathH2O.mean()), 2),
+        "mean_therm": round(mean_therm_k, 2),
+        "mean_wind_speed": round(float(pathWind.mean()), 2),
         "maximum_slope": round(float(pathSlopes.max()), 2),
         "minimum_slope": round(float(pathSlopes.min()), 2),
-        "maximum_therm": round(float(pathThermDay.max()), 2), 
-        "minimum_therm": round(float(pathThermNight.min()), 2), 
+        "maximum_therm": round(float(pathThermDay.max()), 2),
+        "minimum_therm": round(float(pathThermNight.min()), 2),
         "maximum_wind_speed": round(float(pathWind.max()), 2),
         "accumulated_cost": round(float(accumulated_cost), 3),
     }

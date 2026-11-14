@@ -248,7 +248,7 @@ export default function DocsPage() {
                 <li>Each record has <code>id</code>, <code>name</code>, nullable <code>description</code>/<code>photo</code>, and numeric operating limits.</li>
                 <li><code>maxSpead</code> is the API&apos;s existing spelling; it represents speed in km/h.</li>
                 <li><code>maxTherm</code>/<code>minTherm</code> are in K; <code>maxWind</code> is in m/s.</li>
-                <li><code>maxRad</code> and <code>maxEle</code> are also returned. The current path service does not apply radiation or elevation vehicle limits.</li>
+                <li><code>maxRad</code> and <code>maxEle</code> are also returned. <code>maxRad</code> is a legacy field kept for the database and is not used by the path service; <code>maxEle</code> is used as the maximum slope.</li>
               </ul>
             </GlassCard>
           </div>
@@ -291,11 +291,11 @@ export default function DocsPage() {
             </table>
           </GlassCard>
           <p className="text-sm leading-6 text-secondary">
-            The frontend also accepts and sends <code>maxRadiation</code>, and
-            vehicle data includes <code>maxRad</code>. The current Django path
-            view and routing service do not read or apply this value, so it
-            does not affect the route. Do not rely on it as a safety limit
-            until backend support is added.
+            Radiation is not part of the route calculation. The database keeps
+            a legacy <code>maxRad</code> column (recorded flights store the
+            sentinel <code>9999</code>), but the frontend does not send a
+            radiation limit and the backend does not read one. Do not rely on
+            it as a safety limit.
           </p>
         </Section>
 

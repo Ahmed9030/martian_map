@@ -11,13 +11,12 @@ export function vehicleToPathParams(
   vehicle: Vehicle | NormalizedVehicle,
 ): Pick<
   PathParams,
-  "speed" | "maxTherm" | "minTherm" | "maxWind" | "maxRadiation" | "maxSlope"
+  "speed" | "maxTherm" | "minTherm" | "maxWind" | "maxSlope"
 > {
   return {
     speed: "maxSpeed" in vehicle ? vehicle.maxSpeed : vehicle.maxSpead,
     maxTherm: vehicle.maxTherm,
     maxWind: vehicle.maxWind,
-    maxRadiation: vehicle.maxRad,
     minTherm: vehicle.minTherm,
     maxSlope: vehicle.maxEle,
   };

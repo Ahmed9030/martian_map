@@ -18,7 +18,7 @@ class Vehicle(models.Model):
     description = models.TextField(null=True, blank=True, default=None)
     photo = models.URLField(null=True, blank=True, default=None)
     maxSpead = models.FloatField()
-    maxRad = models.FloatField()
+    maxRad = models.FloatField(null=True, blank=True, default=None)
     maxEle = models.FloatField()
     maxTherm = models.FloatField()
     maxWind = models.FloatField()
