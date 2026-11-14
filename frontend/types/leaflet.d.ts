@@ -19,12 +19,14 @@ declare module "leaflet" {
 
   export interface Marker extends Layer {
     bindPopup(content: string): Marker;
+    setLatLng(latlng: [number, number]): this;
+    getLatLng(): { lat: number; lng: number };
   }
 
   export interface LeafletMap {
     on(
       event: "click",
-      fn: (event: { originalEvent: MouseEvent }) => void,
+      fn: (event: { latlng: { lat: number; lng: number }; originalEvent: MouseEvent }) => void,
     ): this;
     on(event: string, fn: (...args: never[]) => void): this;
     invalidateSize(animate?: boolean): void;

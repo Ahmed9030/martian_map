@@ -31,15 +31,30 @@ import {
 } from 'lucide-react';
 
 
-import type { LeafletMap, Layer } from 'leaflet';
+import type { LeafletMap, Layer, Marker } from 'leaflet';
 
 import { LocationDetailsPanel } from './map/LocationDetailsPanel';
 import { VehicleCarousel } from './map/VehicleCarousel';
 import { VehiclePanel } from './map/VehiclePanel';
 import { MAP_LAYER } from './map/layers';
 import { useMapSelection } from './map/useMapSelection';
-import type { DestinationRole } from './map/useMapSelection';
-import type { Vehicle } from '@/lib/api';
+import type { Assignments, DestinationRole } from './map/useMapSelection';
+import {
+  createPickedPoint,
+  createRoutePointIcon,
+  isPickedPoint,
+  ROUTE_POINT_STYLE,
+} from './map/routePoints';
+import type { Destination, Vehicle } from '@/lib/api';
+import {
+  boundsFromCoordinates,
+  crsToMap,
+  formatCrsPoint,
+  isInsideBounds,
+  leafletBounds,
+  mapToCrs,
+} from '@/lib/coords';
+import type { LngLat, MapBounds } from '@/lib/coords';
 import { MineralComposition } from '@/components/ui/MineralComposition';
 import { getRiskLevel } from '@/lib/path/risk';
 import { chooseStep, straightLineKm } from '@/lib/path/plan';
@@ -72,6 +87,42 @@ const RISK_LABEL: Record<string, string> = {
   high: 'High',
   critical: 'Critical',
 };
+
+/** Compact Start/End readout for the route-points panel. */
+function RoutePointReadout({
+  role,
+  point,
+}: {
+  role: 'Start' | 'End';
+  point: Destination | null;
+}) {
+  const style = ROUTE_POINT_STYLE[role];
+  const coords = point
+    ? formatCrsPoint({ x: Number(point.x_coord), y: Number(point.y_coord) })
+    : 'Click the map';
+
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">
+      <span
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+        style={{ backgroundColor: style.color }}
+      >
+        {style.label}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[8px] uppercase tracking-[1px] text-gray-400">{role}</p>
+        <p
+          className={`truncate font-mono text-[10px] ${
+            point ? 'text-white' : 'text-gray-500'
+          }`}
+          title={point ? coords : undefined}
+        >
+          {coords}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function Map() {
   const { data: vehicles, isLoading: vehiclesLoading, error: vehiclesError } = useVehicles();
@@ -151,6 +202,43 @@ export default function Map() {
 
   const { data, isLoading, error } = useMapData(selectedMap);
 
+  // ── Click-to-pick plumbing ──────────────────────────────────────────────
+  // Refs keep the Leaflet event handlers (created once per map) in sync with
+  // the latest React state without re-creating the map.
+  const boundsRef = useRef<MapBounds | null>(null);
+  const assignmentsRef = useRef<Assignments>(assignments);
+  const pickedLayerRef = useRef<Layer | null>(null);
+  const pickedMarkersRef = useRef<Record<DestinationRole, Marker | null>>({
+    Start: null,
+    End: null,
+    'Science Target': null,
+  });
+  // Set during map initialisation so map clicks can un-highlight a yellow
+  // destination that previously held the same role.
+  const clearRoleHighlightRef = useRef<(role: DestinationRole) => void>(() => {});
+  const mapPickRef = useRef<(lngLat: LngLat) => void>(() => {});
+
+  // ── Toast ───────────────────────────────────────────────────────────────
+  const [mapMessage, setMapMessage] = useState<string | null>(null);
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notify = (message: string) => {
+    setMapMessage(message);
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    messageTimerRef.current = setTimeout(() => setMapMessage(null), 3200);
+  };
+  const notifyRef = useRef(notify);
+
+  useEffect(() => {
+    notifyRef.current = notify;
+    assignmentsRef.current = assignments;
+  });
+
+  useEffect(() => {
+    return () => {
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    };
+  }, []);
+
   // ── Deep links: /map?flight=<id> replays a visit, /map?map=<id> picks a map ──
   useEffect(() => {
     if (flightParam) {
@@ -215,25 +303,13 @@ export default function Map() {
 
         if (cancelled || !mapContainerRef.current) return;
 
-        const coordinates = data!.coordinates;
-
-        if (
-          !Array.isArray(coordinates) ||
-          coordinates.length < 4 ||
-          !coordinates[1] ||
-          !coordinates[3]
-        ) {
-          throw new Error('Invalid map coordinates received.');
-        }
-
-        const bounds: [[number, number], [number, number]] = [
-          [coordinates[3][1], coordinates[3][0]],
-          [coordinates[1][1], coordinates[1][0]],
-        ];
-
-        if (!bounds.flat().every(Number.isFinite)) {
+        // Same bounds drive the overlay, `maxBounds`, clicks and destinations.
+        const crsBounds = boundsFromCoordinates(data!.coordinates);
+        if (!crsBounds) {
           throw new Error('Map coordinates are not valid numbers.');
         }
+        boundsRef.current = crsBounds;
+        const bounds = leafletBounds(crsBounds);
 
         const center: [number, number] = [
           (bounds[0][0] + bounds[1][0]) / 2,
@@ -356,12 +432,18 @@ L.DomEvent.on(resetButton, 'click', (e: Event) => {
         mapRef.current = map;
         map.on('click', (event) => {
           if (!event.originalEvent.defaultPrevented) closeDetails();
+          // Clicking the basemap picks the next route point (Start → End → new
+          // selection). Clicks on markers never reach here (stopPropagation).
+          mapPickRef.current(event.latlng);
         });
         const overlay = L.imageOverlay(selectedMap == 1 ? "/maps/TharsisMap.png" : "/maps/jezeroMap.png", bounds);
 
        
 const markersLayer = L.layerGroup().addTo(map);
 routeLayerRef.current = L.layerGroup().addTo(map);
+// Green "S" / red "E" markers for points picked by clicking the map.
+pickedLayerRef.current = L.layerGroup().addTo(map);
+pickedMarkersRef.current = { Start: null, End: null, 'Science Target': null };
 
 const createDestinationIcon = (color: string, selected = false) => {
   if (!selected) {
@@ -404,6 +486,17 @@ return L.divIcon({
 
 };
 
+// Lets a map click / dragged marker clear a previously highlighted yellow
+// destination that held the same role.
+clearRoleHighlightRef.current = (role: DestinationRole) => {
+  markersLayer.eachLayer((layer: Layer) => {
+    if (layer instanceof L.Marker && layer.destinationRole === role) {
+      layer.destinationRole = null;
+      layer.setIcon(createDestinationIcon('#facc15'));
+    }
+  });
+};
+
 if (Array.isArray(data!.destination)) {
   data!.destination.forEach((destination) => {
     const x = Number(destination.x_coord);
@@ -411,7 +504,9 @@ if (Array.isArray(data!.destination)) {
 
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 
-    const marker = L.marker([y, x], {
+    // Destinations go through the same CRS → map helper as map clicks.
+    const position = crsToMap(x, y, crsBounds);
+    const marker = L.marker([position.lat, position.lng], {
       icon: createDestinationIcon('#facc15'),
     });
 
@@ -422,19 +517,16 @@ if (Array.isArray(data!.destination)) {
       offset: [0, -8],
     });
 
-    marker.on('click', () => {
+    marker.on('click', (event?: unknown) => {
+      // A destination click sets Start/End; it must not also pick a new point
+      // through the map click handler.
+      const original = (event as { originalEvent?: Event } | undefined)?.originalEvent;
+      original?.stopPropagation();
+
       const role = destinationModeRef.current;
       const color = ROLE_COLORS[role];
 
-      markersLayer.eachLayer((layer: Layer) => {
-        if (
-          layer instanceof L.Marker &&
-          layer.destinationRole === role
-        ) {
-          layer.destinationRole = null;
-          layer.setIcon(createDestinationIcon('#facc15'));
-        }
-      });
+      clearRoleHighlightRef.current(role);
 
       marker.destinationRole = role;
       marker.setIcon(createDestinationIcon(color, true));
@@ -491,10 +583,148 @@ if (Array.isArray(data!.destination)) {
     };
   }, [selectedMap, data, isLoading, error, setAssignments, setSelectedDestination, closeDetails]);
 
+  // ── Click-to-pick: Start → End → new selection ─────────────────────────
+  useEffect(() => {
+    mapPickRef.current = (lngLat: LngLat) => {
+      const bounds = boundsRef.current;
+      if (!bounds) return;
+
+      const point = mapToCrs(lngLat, bounds);
+      if (!isInsideBounds(point, bounds)) {
+        notifyRef.current('That point is outside the Mars basemap — click inside the image.');
+        return;
+      }
+
+      const current = assignmentsRef.current;
+
+      // "Science Target" keeps its own mode; every other click follows the
+      // Start → End → reset flow.
+      let role: DestinationRole;
+      if (destinationModeRef.current === 'Science Target') role = 'Science Target';
+      else if (!current.Start) role = 'Start';
+      else if (!current.End) role = 'End';
+      else role = 'Start';
+
+      // A clicked point replaces any yellow destination that held the role.
+      clearRoleHighlightRef.current(role);
+
+      const next: Assignments = {
+        ...current,
+        [role]: createPickedPoint(role, point, selectedMap),
+      };
+      // Third click starts a new selection: START = click, END cleared.
+      if (role === 'Start') next.End = null;
+
+      setAssignments(next);
+      setSelectedDestination(null);
+    };
+  });
+
+  // ── Picked Start/End markers (draggable to fine-tune) ──────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncPickedMarkers() {
+      const layer = pickedLayerRef.current;
+      const bounds = boundsRef.current;
+      if (!layer || !bounds) return;
+
+      const leaflet = await import('leaflet');
+      const L = leaflet.default;
+      if (cancelled || pickedLayerRef.current !== layer) return;
+
+      const roles: DestinationRole[] = ['Start', 'End', 'Science Target'];
+
+      for (const role of roles) {
+        const point = assignments[role];
+        const existing = pickedMarkersRef.current[role];
+
+        // Yellow destination picks keep their own pin; only custom points get
+        // the S/E markers.
+        if (!point || !isPickedPoint(point)) {
+          if (existing) {
+            existing.remove();
+            pickedMarkersRef.current[role] = null;
+          }
+          continue;
+        }
+
+        const position = crsToMap(Number(point.x_coord), Number(point.y_coord), bounds);
+        if (!Number.isFinite(position.lat) || !Number.isFinite(position.lng)) continue;
+
+        if (existing) {
+          const currentPosition = existing.getLatLng();
+          if (
+            currentPosition.lat !== position.lat ||
+            currentPosition.lng !== position.lng
+          ) {
+            existing.setLatLng([position.lat, position.lng]);
+          }
+          continue;
+        }
+
+        const marker = L.marker([position.lat, position.lng], {
+          icon: createRoutePointIcon(L, role),
+          draggable: true,
+          zIndexOffset: 600,
+          autoPan: false,
+          keyboard: false,
+        });
+
+        marker.bindTooltip(`${ROUTE_POINT_STYLE[role].name} · drag to fine-tune`, {
+          direction: 'top',
+          offset: [0, -16],
+        });
+
+        marker.on('click', (event?: unknown) => {
+          // Marker clicks never pick a new point.
+          (event as { originalEvent?: Event } | undefined)?.originalEvent?.stopPropagation();
+        });
+
+        marker.on('dragend', () => {
+          const dragBounds = boundsRef.current;
+          if (!dragBounds) return;
+
+          const dragged = marker.getLatLng();
+          const crs = mapToCrs({ lat: dragged.lat, lng: dragged.lng }, dragBounds);
+          const previous = assignmentsRef.current[role];
+
+          if (!isInsideBounds(crs, dragBounds)) {
+            const fallback = crsToMap(
+              Number(previous?.x_coord ?? 0),
+              Number(previous?.y_coord ?? 0),
+              dragBounds,
+            );
+            marker.setLatLng([fallback.lat, fallback.lng]);
+            notifyRef.current('Markers must stay inside the Mars basemap.');
+            return;
+          }
+
+          setAssignments((prev) => ({
+            ...prev,
+            [role]: createPickedPoint(role, crs, prev[role]?.map_id ?? null),
+          }));
+        });
+
+        marker.addTo(layer);
+        pickedMarkersRef.current[role] = marker;
+      }
+    }
+
+    syncPickedMarkers();
+    return () => {
+      cancelled = true;
+    };
+  }, [assignments, data, isLoading, mapLoading, setAssignments]);
+
   // ── Science route validity ─────────────────────────────────────────────
   const scienceSignature = JSON.stringify([
-    assignments.Start?.id ?? assignments.Start?.x_coord ?? null,
-    assignments.End?.id ?? assignments.End?.x_coord ?? null,
+    assignments.Start?.id ?? null,
+    assignments.Start?.x_coord ?? null,
+    assignments.Start?.y_coord ?? null,
+    assignments.End?.id ?? null,
+    assignments.End?.x_coord ?? null,
+    assignments.End?.y_coord ?? null,
     routeVehicle?.id ?? null,
     selectedMap,
     weights.h2o,
@@ -569,6 +799,32 @@ if (Array.isArray(data!.destination)) {
     });
   };
 
+  /** "Calculate Route" — same request as the automatic fast-route effect. */
+  function calculateFastRoute() {
+    const start = assignments.Start;
+    const end = assignments.End;
+    if (!start || !end || !routeVehicle || vehicleWarning) return;
+    void runPath({
+      map: selectedMap,
+      startX: Number(start.x_coord),
+      startY: Number(start.y_coord),
+      endX: Number(end.x_coord),
+      endY: Number(end.y_coord),
+      ...vehicleToPathParams(routeVehicle),
+      maxSlope: effectiveMaxSlope,
+      record: flightParam ? '0' : undefined,
+    });
+  }
+
+  /** Clears both route points, the drawn routes and the science result. */
+  function clearRoutePoints() {
+    setAssignments({ Start: null, End: null, 'Science Target': null });
+    setSelectedDestination(null);
+    setScienceRunKey(null);
+    resetPath();
+    if (mode === 'science') setMode('fast');
+  }
+
   // ── Route drawing ───────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -584,16 +840,19 @@ if (Array.isArray(data!.destination)) {
 
       if (cancelled) return;
 
+      // `path_data` is in raster CRS units; the same helper as the picked
+      // points converts it back into Leaflet lat/lng.
       const toLatLngs = (route: typeof pathData) =>
         (route?.path_data ?? [])
-          .map(
-            (point) =>
-              [Number(point.Y_coordinate), Number(point.X_coordinate)] as [
-                number,
-                number,
-              ],
+          .map((point) =>
+            crsToMap(
+              Number(point.X_coordinate),
+              Number(point.Y_coordinate),
+              boundsRef.current,
+            ),
           )
-          .filter(([y, x]) => Number.isFinite(y) && Number.isFinite(x));
+          .filter(({ lat, lng }) => Number.isFinite(lat) && Number.isFinite(lng))
+          .map(({ lat, lng }) => [lat, lng] as [number, number]);
 
       // The inactive comparison route stays visible as a thin dashed line.
       const drawInactive = (coordinates: [number, number][]) => {
@@ -724,6 +983,17 @@ const temperatureData = activePath?.path_data?.map((point) => ({
         ))}
       </div>
 
+      {/* ── Toast (out-of-bounds clicks, dragging) ── */}
+      {mapMessage && (
+        <div
+          role="status"
+          className="pointer-events-none absolute left-1/2 top-20 z-[9500] flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-amber-400/40 bg-[#1b1409]/95 px-3 py-1.5 text-[11px] text-amber-200 shadow-lg backdrop-blur"
+        >
+          <TriangleAlert size={13} />
+          {mapMessage}
+        </div>
+      )}
+
      
 {/* ── Left panel: Destinations + Route analytics ── */}
 <div
@@ -768,6 +1038,54 @@ const temperatureData = activePath?.path_data?.map((point) => ({
       />
     </button>
   ))}
+
+  {/* Route points picked by clicking the map */}
+  <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+    <div className="mb-1.5 flex items-center gap-1.5">
+      <Crosshair size={12} className="text-orange-400" />
+      <p className="text-[8px] font-semibold tracking-[1.5px] text-gray-400">
+        PICK ON MAP
+      </p>
+    </div>
+
+    <div className="space-y-1">
+      <RoutePointReadout role="Start" point={assignments.Start} />
+      <RoutePointReadout role="End" point={assignments.End} />
+    </div>
+
+    <div className="mt-1.5 grid grid-cols-2 gap-1">
+      <button
+        type="button"
+        onClick={clearRoutePoints}
+        disabled={!assignments.Start && !assignments.End}
+        className="rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1.5 text-[10px] font-semibold text-gray-300 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Clear
+      </button>
+      <button
+        type="button"
+        onClick={calculateFastRoute}
+        disabled={
+          !assignments.Start || !assignments.End || pathLoading || !!vehicleWarning
+        }
+        className="flex items-center justify-center gap-1 rounded-lg border border-orange-400/40 bg-orange-400/15 px-2 py-1.5 text-[10px] font-semibold text-orange-200 transition-colors hover:bg-orange-400/25 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {pathLoading ? (
+          <>
+            <Loader2 size={11} className="animate-spin" /> Calculating…
+          </>
+        ) : (
+          <>
+            <Route size={11} /> Calculate
+          </>
+        )}
+      </button>
+    </div>
+
+    <p className="mt-1 text-[8px] leading-relaxed text-gray-500">
+      1st click sets Start, 2nd sets End, 3rd starts over. Drag S/E to fine-tune.
+    </p>
+  </div>
 
   <div className="my-2.5 h-px bg-white/10" />
 

@@ -104,6 +104,19 @@ export async function getPath(
   return apiGet<PathData>("/path/", queryParams, options);
 }
 
+/**
+ * Click-to-route entry point used by the map picker. Same transport as
+ * `getPath` (URLSearchParams query on `GET /path/`, with HTML/500 responses
+ * and non-JSON bodies normalised into `ApiError`), named explicitly for the
+ * picking flow.
+ */
+export async function getRoute(
+  params: PathParams,
+  options: ApiRequestOptions = {},
+): Promise<PathData> {
+  return getPath(params, options);
+}
+
 /** Creates a new astronaut profile and returns its token. */
 export async function createProfile(
   name: string,
