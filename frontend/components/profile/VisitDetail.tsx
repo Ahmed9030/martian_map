@@ -381,12 +381,12 @@ export function VisitDetail({
                 { label: "Silicon (Si)", value: path.mean_Si, color: "bg-emerald-400" },
                 { label: "Iron (Fe)", value: path.mean_Fe, color: "bg-mars" },
               ].map((mineral) => {
-                const percent = Math.min(100, Math.max(0, Math.round(mineral.value)));
+                const percent = mineral.value;
                 return (
                   <div key={mineral.label}>
                     <div className="flex justify-between text-[11px] text-home-body">
                       <span>{mineral.label}</span>
-                      <span className="font-mono">{formatNumber(mineral.value, 1)}%</span>
+                      <span className="font-mono">{percent}%</span>
                     </div>
                     <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
                       <div

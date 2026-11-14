@@ -36,12 +36,12 @@ export type MineralCompositionProps = MineralValues & {
   className?: string;
 };
 
-/** Clamps a percentage to 0–100 and rounds it to a whole number, or returns null when unusable. */
+/** Clamps a percentage to 0–100, or returns null when unusable. */
 function normalizePercent(value: MineralValue): number | null {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return null;
   }
-  return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, Math.round(value)));
+  return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, value));
 }
 
 function MineralRow({
