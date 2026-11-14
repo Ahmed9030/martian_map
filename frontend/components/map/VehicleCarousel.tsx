@@ -131,14 +131,7 @@ export function VehicleCarousel({
         </button>
       </div>
 
-      {/* Select vehicle — Mars orange primary button */}
-      <Button
-        variant="primary"
-        className="w-full h-9 text-sm bg-mars hover:bg-orange-600 focus-visible:ring-mars"
-        onClick={() => onSelect(vehicle)}
-      >
-        Select Vehicle
-      </Button>
+      
     </GlassCard>
   );
 }

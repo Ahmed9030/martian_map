@@ -4,7 +4,7 @@ import { useMapData } from '@/hooks/useMapData';
 import { usePath } from '@/hooks/usePath';
 import { useVehicles } from '@/hooks/useVehicles';
 import { getRevisitFlight, vehicleToPathParams } from '@/lib/api';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   AreaChart,
@@ -26,6 +26,8 @@ import {
   Clock3,
   Route,
   Crosshair,
+  Loader2,
+  TriangleAlert,
 } from 'lucide-react';
 
 
@@ -39,6 +41,9 @@ import { useMapSelection } from './map/useMapSelection';
 import type { DestinationRole } from './map/useMapSelection';
 import type { Vehicle } from '@/lib/api';
 import { MineralComposition } from '@/components/ui/MineralComposition';
+import { getRiskLevel } from '@/lib/path/risk';
+import { chooseStep, straightLineKm } from '@/lib/path/plan';
+import { formatDistanceKm, formatHours } from '@/lib/format';
 
 
 const ROLE_COLORS: Record<DestinationRole, string> = {
@@ -53,9 +58,36 @@ const DESTINATION_ROLES: { role: DestinationRole; Icon: React.ElementType; color
   { role: 'Science Target', Icon: FlaskConical, color: 'text-cyan-400' },
 ];
 
+const WEIGHT_FIELDS = [
+  { key: 'h2o', label: 'H₂O' },
+  { key: 'fe', label: 'Fe' },
+  { key: 'si', label: 'Si' },
+] as const;
+
+const DEFAULT_MAX_SLOPE = 15;
+
+const RISK_LABEL: Record<string, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  critical: 'Critical',
+};
+
 export default function Map() {
   const { data: vehicles, isLoading: vehiclesLoading, error: vehiclesError } = useVehicles();
   const { data: pathData, isLoading: pathLoading, error: pathError, run: runPath, reset: resetPath } = usePath();
+  const {
+    data: scienceData,
+    isLoading: scienceLoading,
+    error: scienceError,
+    run: runScience,
+  } = usePath();
+
+  // ── Science Mode state ──────────────────────────────────────────────────
+  const [mode, setMode] = useState<'fast' | 'science'>('fast');
+  const [weights, setWeights] = useState({ h2o: 0.8, fe: 0.6, si: 0.6 });
+  // Science results are only valid for the inputs they were requested with.
+  const [scienceRunKey, setScienceRunKey] = useState<string | null>(null);
 
   // ── Vehicle state ───────────────────────────────────────────────────────
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -70,6 +102,26 @@ export default function Map() {
 
   const selectedVehicle =
     vehicles?.find((v) => String(v.id) === activeVehicleId) ?? null;
+
+  const routeVehicle = replayVehicle ?? selectedVehicle;
+  // The API has no per-vehicle slope limit; 15° is the documented default.
+  const effectiveMaxSlope = DEFAULT_MAX_SLOPE;
+
+  /** Fixture data is not always physically consistent (e.g. minTherm > maxTherm). */
+  const vehicleWarning = useMemo(() => {
+    if (!routeVehicle) return null;
+    if (!Number.isFinite(routeVehicle.maxSpead) || routeVehicle.maxSpead <= 0) {
+      return 'This vehicle has an invalid speed limit.';
+    }
+    if (
+      !Number.isFinite(routeVehicle.minTherm) ||
+      !Number.isFinite(routeVehicle.maxTherm) ||
+      routeVehicle.minTherm >= routeVehicle.maxTherm
+    ) {
+      return `Inconsistent temperature limits (${routeVehicle.minTherm} K ≥ ${routeVehicle.maxTherm} K). Pick another vehicle.`;
+    }
+    return null;
+  }, [routeVehicle]);
 
   // ── Map / selection state ───────────────────────────────────────────────
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -439,12 +491,26 @@ if (Array.isArray(data!.destination)) {
     };
   }, [selectedMap, data, isLoading, error, setAssignments, setSelectedDestination, closeDetails]);
 
+  // ── Science route validity ─────────────────────────────────────────────
+  const scienceSignature = JSON.stringify([
+    assignments.Start?.id ?? assignments.Start?.x_coord ?? null,
+    assignments.End?.id ?? assignments.End?.x_coord ?? null,
+    routeVehicle?.id ?? null,
+    selectedMap,
+    weights.h2o,
+    weights.fe,
+    weights.si,
+  ]);
+  const scienceIsCurrent = scienceRunKey === scienceSignature;
+  const scienceRoute = scienceIsCurrent ? scienceData : null;
+  const scienceRouteLoading = scienceIsCurrent && scienceLoading;
+  const scienceRouteError = scienceIsCurrent ? scienceError : null;
+
   // ── Path calculation ────────────────────────────────────────────────────
   useEffect(() => {
     const start = assignments.Start;
     const end = assignments.End;
 
-    const routeVehicle = replayVehicle ?? selectedVehicle;
     if (!start || !end || !routeVehicle) {
       resetPath();
       return;
@@ -458,98 +524,142 @@ if (Array.isArray(data!.destination)) {
       endX: Number(end.x_coord),
       endY: Number(end.y_coord),
       ...params,
+      maxSlope: effectiveMaxSlope,
       // Replaying a visit must not create a duplicate visit entry.
       record: flightParam ? '0' : undefined,
     });
   }, [
     assignments.Start,
     assignments.End,
-    selectedVehicle,
-    replayVehicle,
+    routeVehicle,
+    effectiveMaxSlope,
     flightParam,
     selectedMap,
     runPath,
     resetPath,
   ]);
 
+  const calculateScienceRoute = () => {
+    const start = assignments.Start;
+    const end = assignments.End;
+    if (!start || !end || !routeVehicle || vehicleWarning) return;
+    const params = vehicleToPathParams(routeVehicle);
+    const step = chooseStep(
+      straightLineKm(
+        { x: Number(start.x_coord), y: Number(start.y_coord) },
+        { x: Number(end.x_coord), y: Number(end.y_coord) },
+      ),
+    );
+    setMode('science');
+    setScienceRunKey(scienceSignature);
+    void runScience({
+      map: selectedMap,
+      startX: Number(start.x_coord),
+      startY: Number(start.y_coord),
+      endX: Number(end.x_coord),
+      endY: Number(end.y_coord),
+      ...params,
+      maxSlope: effectiveMaxSlope,
+      mode: 'science',
+      h2o: weights.h2o,
+      fe: weights.fe,
+      si: weights.si,
+      step,
+      record: flightParam ? '0' : undefined,
+    });
+  };
+
   // ── Route drawing ───────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
-    async function drawRoute() {
+    async function drawRoutes() {
       const layer = routeLayerRef.current;
       if (!layer) return;
 
       layer.clearLayers();
 
-      if (!pathData?.path_data?.length) return;
-
       const leaflet = await import('leaflet');
       const L = leaflet.default;
 
-      if (cancelled || !routeLayerRef.current) return;
+      if (cancelled) return;
 
-      const routeCoordinates = pathData.path_data
-        .map((point) => [Number(point.Y_coordinate), Number(point.X_coordinate)])
-        .filter(([y, x]) => Number.isFinite(y) && Number.isFinite(x));
+      const toLatLngs = (route: typeof pathData) =>
+        (route?.path_data ?? [])
+          .map(
+            (point) =>
+              [Number(point.Y_coordinate), Number(point.X_coordinate)] as [
+                number,
+                number,
+              ],
+          )
+          .filter(([y, x]) => Number.isFinite(y) && Number.isFinite(x));
 
-      if (routeCoordinates.length < 2) return;
+      // The inactive comparison route stays visible as a thin dashed line.
+      const drawInactive = (coordinates: [number, number][]) => {
+        L.polyline(coordinates, {
+          color: '#38bdf8',
+          weight: 2,
+          opacity: 0.55,
+          dashArray: '6 8',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(layer);
+      };
 
-     
-// 1. Outer glow
-L.polyline(routeCoordinates as [number, number][], {
-  color: '#a78bfa',
-  weight: 12,
-  opacity: 0.15,
-  lineCap: 'butt',
-  lineJoin: 'round',
-}).addTo(routeLayerRef.current);
+      // The active route keeps the original amber glow styling.
+      const drawActive = (coordinates: [number, number][]) => {
+        L.polyline(coordinates, {
+          color: '#fbbf24',
+          weight: 12,
+          opacity: 0.15,
+          lineCap: 'butt',
+          lineJoin: 'round',
+        }).addTo(layer);
+        L.polyline(coordinates, {
+          color: '#d97706',
+          weight: 6,
+          opacity: 0.5,
+          lineCap: 'butt',
+          lineJoin: 'round',
+        }).addTo(layer);
+        L.polyline(coordinates, {
+          color: '#fde68a',
+          weight: 2.5,
+          opacity: 1,
+          lineCap: 'butt',
+          lineJoin: 'round',
+        }).addTo(layer);
+        L.polyline(coordinates, {
+          color: '#ffffff',
+          weight: 1,
+          opacity: 0.7,
+          dashArray: '2 12',
+          lineCap: 'butt',
+        }).addTo(layer);
+      };
 
-// 2. Route shadow
+      const fastCoordinates = toLatLngs(pathData);
+      const scienceCoordinates = toLatLngs(scienceRoute);
+      const activeCoordinates =
+        mode === 'science' ? scienceCoordinates : fastCoordinates;
+      const inactiveCoordinates =
+        mode === 'science' ? fastCoordinates : scienceCoordinates;
 
-// 1. Outer glow
-L.polyline(routeCoordinates as [number, number][], {
-  color: '#fbbf24',
-  weight: 12,
-  opacity: 0.15,
-  lineCap: 'butt',
-  lineJoin: 'round',
-}).addTo(routeLayerRef.current);
-
-// 2. Route shadow
-L.polyline(routeCoordinates as [number, number][], {
-  color: '#d97706',
-  weight: 6,
-  opacity: 0.5,
-  lineCap: 'butt',
-  lineJoin: 'round',
-}).addTo(routeLayerRef.current);
-
-// 3. Main route
-L.polyline(routeCoordinates as [number, number][], {
-  color: '#fde68a',
-  weight: 2.5,
-  opacity: 1,
-  lineCap: 'butt',
-  lineJoin: 'round',
-}).addTo(routeLayerRef.current);
-
-// 4. Small details
-L.polyline(routeCoordinates as [number, number][], {
-  color: '#ffffff',
-  weight: 1,
-  opacity: 0.7,
-  dashArray: '2 12',
-  lineCap: 'butt',
-}).addTo(routeLayerRef.current);
-
+      if (inactiveCoordinates.length >= 2) drawInactive(inactiveCoordinates);
+      if (activeCoordinates.length >= 2) drawActive(activeCoordinates);
     }
 
-    drawRoute();
+    drawRoutes();
     return () => { cancelled = true; };
-  }, [pathData]);
+  }, [pathData, scienceRoute, mode]);
 
-const temperatureData = pathData?.path_data?.map((point) => ({
+// The charts and analytics always describe the route the astronaut is viewing.
+const activePath = mode === 'science' ? scienceRoute : pathData;
+const activePathLoading = mode === 'science' ? scienceRouteLoading : pathLoading;
+const activePathError = mode === 'science' ? scienceRouteError : pathError;
+
+const temperatureData = activePath?.path_data?.map((point) => ({
   distance: Number(point.Distance_km),
   morning: Number(point.max_therm),
   night: Number(point.min_therm),
@@ -669,7 +779,7 @@ const temperatureData = pathData?.path_data?.map((point) => ({
         ROUTE ANALYTICS
       </p>
     </div>
-    <span className="text-[8px] text-cyan-400">LIVE</span>
+    <span className="text-[8px] text-cyan-400">LIVE · {mode === 'fast' ? 'A' : 'B'}</span>
   </div>
 
   <div className="grid grid-cols-2 gap-1.5">
@@ -679,7 +789,7 @@ const temperatureData = pathData?.path_data?.map((point) => ({
         <span className="text-[7px]">TIME</span>
       </div>
       <p className="mt-1.5 text-sm font-bold text-cyan-300">
-        {pathData ? `${Number(pathData.estimated_time_hours).toFixed(2)} h` : '--'}
+        {activePath ? `${Number(activePath.estimated_time_hours).toFixed(2)} h` : '--'}
       </p>
     </div>
 
@@ -689,35 +799,180 @@ const temperatureData = pathData?.path_data?.map((point) => ({
         <span className="text-[7px]">DISTANCE</span>
       </div>
       <p className="mt-1.5 text-sm font-bold text-orange-300">
-        {pathData ? `${Number(pathData.route_length_km).toFixed(2)} km` : '--'}
+        {activePath ? `${Number(activePath.route_length_km).toFixed(2)} km` : '--'}
       </p>
     </div>
   </div>
 
-  {pathLoading && (
+  <div className="my-2.5 h-px bg-white/10" />
+
+  {/* Science Mode */}
+  <div className="mb-2 flex items-center justify-between">
+    <div className="flex items-center gap-1.5">
+      <FlaskConical size={13} className="text-cyan-400" />
+      <p className="text-[9px] font-semibold tracking-[1.5px] text-gray-400">
+        ROUTE MODE
+      </p>
+    </div>
+    <span className="text-[8px] text-cyan-400">{mode === 'fast' ? 'A' : 'B'}</span>
+  </div>
+
+  <div className="grid grid-cols-2 gap-1">
+    {(['fast', 'science'] as const).map((option) => (
+      <button
+        key={option}
+        onClick={() => setMode(option)}
+        className={`rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-colors ${
+          mode === option
+            ? 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200'
+            : 'border-white/10 bg-white/[0.03] text-gray-400 hover:bg-white/[0.07]'
+        }`}
+      >
+        {option === 'fast' ? 'Fast' : 'Science'}
+      </button>
+    ))}
+  </div>
+
+  {mode === 'science' && (
+    <div className="mt-2 space-y-1.5">
+      {!scienceRoute && !scienceRouteLoading && (
+        <p className="text-[9px] text-gray-500">
+          Run the science route to compare it with the fast route.
+        </p>
+      )}
+      {WEIGHT_FIELDS.map(({ key, label }) => (
+        <label key={key} className="block">
+          <span className="flex items-center justify-between text-[9px] text-gray-400">
+            <span>{label} weight</span>
+            <span className="text-cyan-300">{Math.round(weights[key] * 100)}%</span>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={weights[key]}
+            onChange={(event) =>
+              setWeights((current) => ({ ...current, [key]: Number(event.target.value) }))
+            }
+            aria-label={`${label} weight`}
+            className="mt-0.5 h-1 w-full accent-cyan-400"
+          />
+        </label>
+      ))}
+
+      <button
+        onClick={calculateScienceRoute}
+        disabled={!assignments.Start || !assignments.End || !!vehicleWarning || scienceRouteLoading}
+        className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2 py-1.5 text-[10px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {scienceRouteLoading ? (
+          <>
+            <Loader2 size={12} className="animate-spin" /> Calculating…
+          </>
+        ) : (
+          <>
+            <FlaskConical size={12} /> Calculate Science Route
+          </>
+        )}
+      </button>
+
+      {(!assignments.Start || !assignments.End) && (
+        <p className="text-[9px] text-gray-500">Assign Start and End on the map first.</p>
+      )}
+      {scienceRouteError && (
+        <p className="text-[10px] text-red-400">{scienceRouteError.message}</p>
+      )}
+      {vehicleWarning && (
+        <p className="flex gap-1 text-[9px] text-amber-400">
+          <TriangleAlert size={11} className="mt-px shrink-0" />
+          {vehicleWarning}
+        </p>
+      )}
+    </div>
+  )}
+
+  {/* Route comparison */}
+  {(pathData || scienceRoute) && (
+    <div className="mt-2.5">
+      <p className="mb-1 text-[8px] font-semibold tracking-[1.5px] text-gray-500">
+        ROUTE COMPARISON
+      </p>
+      <div className="space-y-1">
+        <button
+          onClick={() => setMode('fast')}
+          className={`flex w-full items-center justify-between rounded-lg border px-2 py-1 text-left transition-colors ${
+            mode === 'fast'
+              ? 'border-amber-400/50 bg-amber-400/10'
+              : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.07]'
+          }`}
+        >
+          <span className="flex items-center gap-1.5 text-[9px] text-gray-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            A · Fast
+          </span>
+          <span className="text-[9px] text-gray-400">
+            {pathData
+              ? `${formatDistanceKm(pathData.route_length_km)} · ${formatHours(pathData.estimated_time_hours)}`
+              : '--'}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setMode('science')}
+          className={`flex w-full items-center justify-between rounded-lg border px-2 py-1 text-left transition-colors ${
+            mode === 'science'
+              ? 'border-cyan-400/50 bg-cyan-400/10'
+              : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.07]'
+          }`}
+        >
+          <span className="flex items-center gap-1.5 text-[9px] text-gray-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            B · Science
+          </span>
+          <span className="text-[9px] text-gray-400">
+            {scienceRoute
+              ? `${formatDistanceKm(scienceRoute.route_length_km)} · ${formatHours(scienceRoute.estimated_time_hours)}`
+              : scienceRouteLoading
+                ? 'Calculating…'
+                : 'Not run'}
+          </span>
+        </button>
+      </div>
+
+      {pathData && scienceRoute && (
+        <p className="mt-1 text-[8px] text-gray-500">
+          Slope risk · A {RISK_LABEL[getRiskLevel(pathData.maximum_slope, effectiveMaxSlope)]} ·
+          B {RISK_LABEL[getRiskLevel(scienceRoute.maximum_slope, effectiveMaxSlope)]}
+        </p>
+      )}
+    </div>
+  )}
+
+  {activePathLoading && (
     <p className="mt-2 text-center text-[10px] text-cyan-300">
       Calculating route…
     </p>
   )}
 
-  {pathError && (
-    <p className="mt-2 text-[10px] text-red-400">{pathError.message}</p>
+  {activePathError && (
+    <p className="mt-2 text-[10px] text-red-400">{activePathError.message}</p>
   )}
 </div>
 
 
           {/* Elevation Profile */}
     {assignments.Start && assignments.End && (
-    <div className={`absolute bottom-3 left-4 z-[1000] ${MAP_LAYER.panel} glass-panel w-90 h-fit rounded-xl p-3 text-white`}>  <p className="text-[10px] font-semibold tracking-[2px] text-gray-400">
+    <div className={`absolute bottom-3 right-1/2 mr-1.5 z-[1000] ${MAP_LAYER.panel} glass-panel h-fit w-[min(22.5rem,calc(50vw-0.75rem))] rounded-xl p-3 text-white`}>  <p className="text-[10px] font-semibold tracking-[2px] text-gray-400">
       ELEVATION PROFILE
     </p>
     <span className="text-[9px] text-orange-400">Elevation (m)</span>
 
 
-{pathData?.path_data?.length ? (
+{activePath?.path_data?.length ? (
   <ResponsiveContainer width="100%" height={130}>
     <AreaChart
-  data={pathData.path_data}
+  data={activePath.path_data}
   margin={{ top: 5, right: 5, left: -15, bottom: 0 }}
 >
   <defs>
@@ -840,7 +1095,7 @@ const temperatureData = pathData?.path_data?.map((point) => ({
 
 {/* Temperature Profile */}
 {assignments.Start && assignments.End && (
-  <div className={`absolute bottom-3 left-[calc(1rem+23rem)] z-[1000] ${MAP_LAYER.panel} glass-panel w-90 h-fit rounded-xl p-3 text-white`}>
+  <div className={`absolute bottom-3 left-1/2 ml-1.5 z-[1000] ${MAP_LAYER.panel} glass-panel h-fit w-[min(22.5rem,calc(50vw-0.75rem))] rounded-xl p-3 text-white`}>
     <p className="text-[10px] font-semibold tracking-[2px] text-gray-400">
       TEMPERATURE PROFILE
     </p>
@@ -952,10 +1207,10 @@ const temperatureData = pathData?.path_data?.map((point) => ({
 
       {/* ── Mineral Composition ── */}
       <MineralComposition
-        h2o={pathData?.mean_H2O ?? null}
-        si={pathData?.mean_Si ?? null}
-        fe={pathData?.mean_Fe ?? null}
-        isLoading={pathLoading}
+        h2o={activePath?.mean_H2O ?? null}
+        si={activePath?.mean_Si ?? null}
+        fe={activePath?.mean_Fe ?? null}
+        isLoading={activePathLoading}
         className={`absolute bottom-16 right-4 ${MAP_LAYER.panel}`}
       />
 

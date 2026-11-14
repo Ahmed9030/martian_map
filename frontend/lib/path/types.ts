@@ -5,7 +5,10 @@ export interface PathPoint {
   Y_coordinate: number;
   Elevation: number;
   Slope_Degrees: number | null;
-  therm: number | null;
+  therm?: number | null;
+  max_therm?: number | null;
+  min_therm?: number | null;
+  Wind?: number | null;
   H2O: number | null;
   Fe: number | null;
   Si: number | null;

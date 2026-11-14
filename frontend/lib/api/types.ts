@@ -21,6 +21,8 @@ export interface Vehicle {
   description: string | null;
   photo: string | null;
   maxSpead: number;
+  /** Radiation limit; the API unit is fixture-defined (displayed as-is). */
+  maxRad?: number;
   maxEle: number;
   maxTherm: number;
   maxWind: number;
@@ -82,16 +84,17 @@ export interface PathPoint {
   Y_coordinate: number;
   Elevation: number;
   Slope_Degrees: number;
-  therm: number;
+  /** Legacy single temperature value; `GET /path/` now returns max/min_therm. */
+  therm?: number | null;
   /** Day-side temperature for this step, as returned by `GET /path/`. */
-  max_therm: number;
+  max_therm?: number | null;
   /** Night-side temperature for this step, as returned by `GET /path/`. */
-  min_therm: number;
+  min_therm?: number | null;
   /** Wind speed at this step, in m/s (added by the backend). */
-  Wind?: number;
-  H2O: number;
-  Fe: number;
-  Si: number;
+  Wind?: number | null;
+  H2O: number | null;
+  Fe: number | null;
+  Si: number | null;
   Distance_km: number;
 }
 
